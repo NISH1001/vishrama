@@ -12,6 +12,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     var onBreakNow: (() -> Void)?
     var onTogglePause: (() -> Void)?
+    var onSettings: (() -> Void)?
 
     private var paused = false
     /// Horizontal range of the pause/play glyph inside the title, for hit-testing.
@@ -28,7 +29,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             button.target = self
             button.action = #selector(statusItemClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.toolTip = "Click ⏸/▶ to pause · click elsewhere for menu"
+            button.toolTip = "Click 🌻 to pause/resume · click elsewhere for menu"
         }
         render(time: "--:--")
     }
@@ -40,13 +41,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             render(time: Self.format(remaining))
         case .onBreak(_, let remaining):
             paused = false
-            render(time: Self.format(remaining), prefix: "☕")
+            render(time: Self.format(remaining), onBreak: true)
         case .idlePaused(let remaining):
             paused = false
-            render(time: Self.format(remaining), prefix: "⏸")
+            // Dimmed time = auto-paused because you're away.
+            render(time: Self.format(remaining), dimmed: true)
         case .manualPaused(let remaining):
             paused = true
-            render(time: Self.format(remaining))
+            render(time: Self.format(remaining), dimmed: true)
         }
         pauseItem?.title = paused ? "Resume" : "Pause"
     }
@@ -58,27 +60,25 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private static let glyphFont = NSFont.systemFont(
         ofSize: 13, weight: .medium)
 
-    /// Compose "वि <glyph> <time>" and remember where the glyph sits for hit-testing.
-    private func render(time: String, prefix: String = "वि") {
-        let glyph = paused ? "▶" : "⏸"
+    /// Compose "🌻 <time>" — the flower itself is the pause/play button
+    /// (wilts to 🥀 while paused). Remember where it sits for hit-testing.
+    private func render(time: String, onBreak: Bool = false, dimmed: Bool = false) {
+        let flower = paused ? "🥀" : "🌻"
+        let timeColor: NSColor = dimmed ? .tertiaryLabelColor : .labelColor
         let head = NSMutableAttributedString(
-            string: "\(prefix)  ", attributes: [.font: Self.textFont])
-        let glyphPart = NSAttributedString(
-            string: glyph,
-            attributes: [.font: Self.glyphFont, .baselineOffset: 0.5])
-        let tail = NSAttributedString(string: "  \(time)", attributes: [.font: Self.textFont])
-
-        let start = head.size().width
-        head.append(glyphPart)
-        let end = head.size().width
-        head.append(tail)
+            string: flower, attributes: [.font: Self.glyphFont])
+        let flowerWidth = head.size().width
+        let rest = onBreak ? "  ☕ \(time)" : "  \(time)"
+        head.append(NSAttributedString(
+            string: rest,
+            attributes: [.font: Self.textFont, .foregroundColor: timeColor]))
 
         statusItem.button?.attributedTitle = head
         // Title is centered in the button; account for that when clicks arrive.
         if let button = statusItem.button {
             let inset = max(0, (button.bounds.width - head.size().width) / 2)
             // Generous padding so the tap target isn't pixel-perfect.
-            glyphRange = (inset + start - 5)...(inset + end + 5)
+            glyphRange = (inset - 6)...(inset + flowerWidth + 6)
         }
     }
 
@@ -126,6 +126,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(breakNow)
 
         menu.addItem(.separator())
+        let settings = NSMenuItem(title: "Settings…", action: #selector(settingsClicked), keyEquivalent: ",")
+        settings.target = self
+        menu.addItem(settings)
+
+        menu.addItem(.separator())
         let quit = NSMenuItem(
             title: "Quit Vishrama",
             action: #selector(NSApplication.terminate(_:)),
@@ -140,5 +145,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func togglePauseClicked() {
         onTogglePause?()
+    }
+
+    @objc private func settingsClicked() {
+        onSettings?()
     }
 }

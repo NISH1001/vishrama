@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import OSLog
 import VishramaCore
 
@@ -11,6 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayController: OverlayController!
     private var timer: Timer?
     private var eventLog: EventLogStore!
+    private var settings: SettingsStore!
+    private var settingsWindowController: SettingsWindowController!
+    private var settingsObserver: AnyCancellable?
 
     static var eventLogDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -18,9 +22,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let config = Self.makeConfiguration()
-        engine = ScheduleEngine(config: config, startAt: Date())
+        settings = SettingsStore()
+        engine = ScheduleEngine(config: settings.configuration, startAt: Date())
         eventLog = EventLogStore(directory: Self.eventLogDirectory)
+        settingsWindowController = SettingsWindowController(store: settings)
+
+        // Settings edits rebuild the engine (countdown restarts with new values).
+        settingsObserver = settings.objectWillChange
+            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.engine = ScheduleEngine(config: self.settings.configuration, startAt: Date())
+                    Self.log.notice("settings changed; engine rebuilt")
+                }
+            }
 
         statusItemController = StatusItemController()
         statusItemController.onBreakNow = { [weak self] in
@@ -31,8 +47,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.apply(self.engine.togglePause(now: Date()))
         }
+        statusItemController.onSettings = { [weak self] in
+            self?.settingsWindowController.show()
+        }
 
         overlayController = OverlayController()
+        overlayController.promptsProvider = { [weak self] kind in
+            self?.settings.prompts(for: kind) ?? []
+        }
         overlayController.onSkip = { [weak self] in
             guard let self else { return }
             self.apply(self.engine.skip(now: Date()))
@@ -55,21 +77,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static var isFastMode: Bool {
         ProcessInfo.processInfo.environment["VISHRAMA_DEBUG_FAST"] == "1"
             || UserDefaults.standard.bool(forKey: "debugFast")
-    }
-
-    /// Fast mode compresses minutes to seconds so a full break cycle is observable in ~1 minute.
-    private static func makeConfiguration() -> BreakConfiguration {
-        if isFastMode {
-            return BreakConfiguration(
-                shortInterval: 25,
-                shortDuration: 6,
-                longDuration: 10,
-                longBreakEvery: 2,
-                idlePauseThreshold: 20,
-                postponeDelay: 8
-            )
-        }
-        return BreakConfiguration()
     }
 
     @objc private func timerFired() {

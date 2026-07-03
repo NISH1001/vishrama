@@ -17,24 +17,15 @@ final class OverlayController {
     private var windows: [OverlayWindow] = []
     private var keyMonitor: Any?
 
-    private static let shortPrompts = [
-        "Look away at something distant",
-        "Close your eyes and breathe",
-        "Drink some water",
-        "Relax your neck — slow circles",
-    ]
-    private static let longPrompts = [
-        "Stand up and take a little walk",
-        "Anapana — observe your breath",
-        "Stretch your upper body",
-    ]
+    /// Injected by the app so prompts come from user settings.
+    var promptsProvider: ((BreakKind) -> [String])?
     private var promptIndex = 0
 
     func show(kind: BreakKind, remaining: TimeInterval) {
         guard windows.isEmpty else { return }
         model.kind = kind
         model.remaining = remaining
-        let prompts = kind == .short ? Self.shortPrompts : Self.longPrompts
+        let prompts = promptsProvider?(kind) ?? ["Take a breath"]
         model.prompt = prompts[promptIndex % prompts.count]
         promptIndex += 1
 
