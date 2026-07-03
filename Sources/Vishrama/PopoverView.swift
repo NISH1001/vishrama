@@ -35,6 +35,8 @@ final class StatusModel: ObservableObject {
 }
 
 /// The Take-a-Break-style panel that springs from the menu bar icon.
+/// It paints its own opaque dark chrome instead of relying on OS popover
+/// materials — Tahoe's Liquid Glass renders those too light to read.
 struct PopoverView: View {
     @ObservedObject var model: StatusModel
     let onTogglePause: () -> Void
@@ -86,5 +88,15 @@ struct PopoverView: View {
         }
         .padding(14)
         .frame(width: 210)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [Color(red: 0.13, green: 0.15, blue: 0.20), Color(red: 0.08, green: 0.09, blue: 0.13)],
+                    startPoint: .top, endPoint: .bottom))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(.white.opacity(0.12), lineWidth: 1))
+        )
+        .environment(\.colorScheme, .dark)
     }
 }

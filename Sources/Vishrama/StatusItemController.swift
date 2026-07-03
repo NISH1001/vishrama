@@ -11,21 +11,34 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private var pauseItem: NSMenuItem?
     let statusModel = StatusModel()
-    private lazy var popover: NSPopover = {
-        let popover = NSPopover()
-        popover.behavior = .transient
-        // Pin to dark so the panel reads the same on every macOS material
-        // (Tahoe's Liquid Glass renders the default far too light for our text).
-        popover.appearance = NSAppearance(named: .darkAqua)
-        popover.contentViewController = NSHostingController(rootView: PopoverView(
+    /// Our own anchored panel instead of NSPopover: NSPopover detaches from
+    /// status items in fullscreen Spaces and Tahoe re-skins its material.
+    /// An NSPanel we position ourselves behaves everywhere.
+    private lazy var panel: NSPanel = {
+        let hosting = NSHostingView(rootView: PopoverView(
             model: statusModel,
             onTogglePause: { [weak self] in self?.onTogglePause?() },
-            onBreakNow: { [weak self] in self?.popover.performClose(nil); self?.onBreakNow?() },
+            onBreakNow: { [weak self] in self?.closePanel(); self?.onBreakNow?() },
             onReset: { [weak self] in self?.onReset?() },
-            onHistory: { [weak self] in self?.popover.performClose(nil); self?.onHistory?() },
-            onSettings: { [weak self] in self?.popover.performClose(nil); self?.onSettings?() }
+            onHistory: { [weak self] in self?.closePanel(); self?.onHistory?() },
+            onSettings: { [weak self] in self?.closePanel(); self?.onSettings?() }
         ))
-        return popover
+        let panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isFloatingPanel = true
+        panel.level = .popUpMenu
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        // Attaches correctly even over fullscreen apps — the NSPopover failure mode.
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        panel.isReleasedWhenClosed = false
+        panel.contentView = hosting
+        return panel
     }()
 
     var onBreakNow: (() -> Void)?
@@ -40,9 +53,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private var paused = false
     /// Horizontal range of the pause/play glyph inside the title, for hit-testing.
     private var glyphRange: ClosedRange<CGFloat> = 0...0
-    /// Accessory apps don't get transient-popover dismissal for free; watch
-    /// for clicks in other apps and close ourselves.
-    private var outsideClickMonitor: Any?
+    /// Close-on-outside-click monitors (global = other apps, local = our windows).
+    private var outsideClickMonitors: [Any] = []
 
     override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -130,31 +142,56 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let x = button.convert(event.locationInWindow, from: nil).x
         if glyphRange.contains(x) {
             onTogglePause?()
-        } else if popover.isShown {
-            closePopover()
+        } else if panel.isVisible {
+            closePanel()
         } else {
-            // The panel springs from the icon — no disjointed windows.
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
-                matching: [.leftMouseDown, .rightMouseDown]
-            ) { [weak self] _ in
-                Task { @MainActor in self?.closePopover() }
-            }
+            showPanel()
         }
+    }
+
+    /// Position the panel snugly under the status item and show it.
+    private func showPanel() {
+        guard let buttonWindow = statusItem.button?.window else { return }
+        let size = panel.contentView?.fittingSize ?? panel.frame.size
+        panel.setContentSize(size)
+
+        let anchor = buttonWindow.frame
+        var x = anchor.midX - size.width / 2
+        if let screen = buttonWindow.screen {
+            x = min(max(x, screen.visibleFrame.minX + 8), screen.visibleFrame.maxX - size.width - 8)
+        }
+        panel.setFrameOrigin(NSPoint(x: x, y: anchor.minY - size.height - 6))
+        panel.orderFrontRegardless()
+
+        // Dismiss on any click outside the panel (other apps AND our own windows;
+        // the status button itself is exempt so its click handler stays the toggle).
+        let close: (NSEvent) -> Void = { [weak self] event in
+            guard let self else { return }
+            if event.window === self.panel || event.window === self.statusItem.button?.window { return }
+            self.closePanel()
+        }
+        outsideClickMonitors = [
+            NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+                Task { @MainActor in close(event) }
+            },
+            NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+                Task { @MainActor in close(event) }
+                return event
+            },
+        ].compactMap { $0 }
     }
 
     /// Screenshot support: open the panel without a click.
     func debugShowPopover() {
-        guard let button = statusItem.button else { return }
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        showPanel()
     }
 
-    private func closePopover() {
-        popover.performClose(nil)
-        if let monitor = outsideClickMonitor {
+    private func closePanel() {
+        panel.orderOut(nil)
+        for monitor in outsideClickMonitors {
             NSEvent.removeMonitor(monitor)
-            outsideClickMonitor = nil
         }
+        outsideClickMonitors = []
     }
 
     /// Assign the menu only while showing it, so plain clicks keep reaching our action.
