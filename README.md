@@ -13,6 +13,13 @@ its limits: it happily throws a full-screen overlay while you're sharing your sc
 meeting, and skipping a break teaches it nothing. I wanted those smarts, plus far more
 customizability for how *I* work — so I built vishrama.
 
+**To be clear, vishrama is not a clone or fork.** It's written from scratch in Swift and
+shares no code with (and has no affiliation to) the original — Take a Break was the
+*reference for the vibe*: the menu-bar countdown, the gentle full-screen pause, the
+short/long break rhythm. On top of that vibe I added the things I personally needed:
+context awareness (camera/mic, screen share, calendar), adaptive backoff and flow mode,
+a plain-text data format that follows me across Macs, and every knob exposed.
+
 The result keeps the classic pomodoro-style break scheduling, but it also **knows when not
 to interrupt you** (meetings, screen sharing, calendar events) and **learns from your
 behavior** (skips, flow sessions) instead of nagging blindly.
@@ -49,12 +56,25 @@ behavior** (skips, flow sessions) instead of nagging blindly.
 
 ## Install
 
-Grab the `.dmg` from [Releases](https://github.com/NISH1001/vishrama/releases), drag
-**Vishrama** to Applications, and launch.
+1. Download `Vishrama-x.y.z.dmg` from [Releases](https://github.com/NISH1001/vishrama/releases).
+2. Open the DMG and drag **Vishrama** into **Applications**.
+3. First launch: **right-click Vishrama.app → Open → Open**. The app is self-signed (no
+   Apple Developer certificate), so Gatekeeper warns once. Alternatively:
+   `xattr -d com.apple.quarantine /Applications/Vishrama.app`
+4. Look for **🌻 25:00** in the menu bar — that's it. Click the timer for the panel,
+   click the flower to pause.
+5. Recommended first-run setup:
+   - **Settings → General** → enable *Launch Vishrama at login*.
+   - **Settings → General → Data** → keep *iCloud Drive* if you use multiple Macs
+     (settings + history sync via `iCloud Drive ▸ Vishrama`).
+   - **Settings → Context** → enable *Busy calendar event* if you want calendar
+     awareness (macOS will ask for Calendar access once).
+   - Allow **notifications** when prompted — flow mode uses them instead of overlays.
 
-> **First launch on a new Mac:** the app is self-signed (no Apple Developer certificate),
-> so Gatekeeper will warn. Right-click the app → **Open** → Open. Or:
-> `xattr -d com.apple.quarantine /Applications/Vishrama.app`
+### Updating
+
+Download the newer DMG and drag to Applications again (replace). Settings and history
+live in your data folder, not the app, so nothing is lost.
 
 ## Build from source
 
