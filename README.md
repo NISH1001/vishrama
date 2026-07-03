@@ -11,7 +11,7 @@ The whole app lives in the menu bar — the 🌻 is the pause button (it wilts t
 paused), and clicking the timer opens the panel:
 
 <p align="center">
-  <img src="docs/screenshots/popover.png" width="330" alt="Menu bar popover: countdown, pause circle, Reset / Break Now, History · Settings · Quit">
+  <img src="docs/screenshots/panel.png" width="330" alt="Menu bar popover: countdown, pause circle, Reset / Break Now, History · Settings · Quit">
 </p>
 
 When a break is due (and you're *not* in a meeting), the screen softens into this —
