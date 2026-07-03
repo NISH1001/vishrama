@@ -146,7 +146,7 @@ struct SettingsView: View {
 
                 LabeledContent("Current location") {
                     HStack {
-                        Text(store.dataRoot.path)
+                        Text(Self.friendlyPath(store.dataRoot))
                             .font(.caption)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -165,6 +165,21 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// Display-only prettification: "iCloud Drive ▸ Vishrama" or "~/…".
+    static func friendlyPath(_ url: URL) -> String {
+        let path = url.path
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let cloudDocs = home + "/Library/Mobile Documents/com~apple~CloudDocs"
+        if path.hasPrefix(cloudDocs) {
+            let rest = String(path.dropFirst(cloudDocs.count)).trimmingCharacters(in: ["/"])
+            return rest.isEmpty ? "iCloud Drive" : "iCloud Drive ▸ \(rest.replacingOccurrences(of: "/", with: " ▸ "))"
+        }
+        if path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
     }
 
     private func chooseCustomFolder() {
