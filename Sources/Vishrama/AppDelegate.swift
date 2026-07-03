@@ -104,9 +104,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         contextMonitor.setProviders(providers)
     }
 
+    private var lastSignals: Set<SignalKind> = []
+
     @objc private func timerFired() {
+        let signals = contextMonitor.activeSignals
+        if signals != lastSignals {
+            Self.log.notice("signals changed: [\(signals.map(\.rawValue).sorted().joined(separator: ","), privacy: .public)]")
+            lastSignals = signals
+        }
         let context = ContextSnapshot(
-            activeSignals: contextMonitor.activeSignals,
+            activeSignals: signals,
             idleSeconds: IdleMonitor.systemIdleSeconds(),
             frontmostApp: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         )
