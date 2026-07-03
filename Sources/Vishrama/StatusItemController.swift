@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import VishramaCore
 
 /// Owns the menu bar presence: a single status item reading "वि ⏸ 24:32".
@@ -9,6 +10,20 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
     private var pauseItem: NSMenuItem?
+    let statusModel = StatusModel()
+    private lazy var popover: NSPopover = {
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = NSHostingController(rootView: PopoverView(
+            model: statusModel,
+            onTogglePause: { [weak self] in self?.onTogglePause?() },
+            onBreakNow: { [weak self] in self?.popover.performClose(nil); self?.onBreakNow?() },
+            onReset: { [weak self] in self?.onReset?() },
+            onHistory: { [weak self] in self?.popover.performClose(nil); self?.onHistory?() },
+            onSettings: { [weak self] in self?.popover.performClose(nil); self?.onSettings?() }
+        ))
+        return popover
+    }()
 
     var onBreakNow: (() -> Void)?
     var onTogglePause: (() -> Void)?
@@ -37,6 +52,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     func update(_ status: StatusInfo) {
+        statusModel.status = status
         switch status {
         case .working(let remaining):
             paused = false
@@ -104,8 +120,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let x = button.convert(event.locationInWindow, from: nil).x
         if glyphRange.contains(x) {
             onTogglePause?()
+        } else if popover.isShown {
+            popover.performClose(nil)
         } else {
-            showMenu()
+            // The panel springs from the icon — no disjointed windows.
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
     }
 

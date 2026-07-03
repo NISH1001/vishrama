@@ -48,6 +48,37 @@ final class SettingsStore: ObservableObject {
     @Published var presentingApps: [String] {
         didSet { defaults.set(presentingApps, forKey: "presentingApps") }
     }
+    enum DataLocationChoice: String, CaseIterable {
+        case icloud, local, custom
+    }
+
+    /// Where settings + history live. iCloud Drive by default so the app
+    /// feels identical across Macs.
+    @Published var dataLocationChoice: DataLocationChoice {
+        didSet {
+            defaults.set(dataLocationChoice.rawValue, forKey: "dataLocationChoice")
+            importMirroredSettingsIfPresent()
+        }
+    }
+    @Published var customDataPath: String {
+        didSet {
+            defaults.set(customDataPath, forKey: "customDataPath")
+            if dataLocationChoice == .custom { importMirroredSettingsIfPresent() }
+        }
+    }
+
+    /// Resolved root folder for events/ and settings.json.
+    var dataRoot: URL {
+        switch dataLocationChoice {
+        case .icloud:
+            return DataLocation.iCloudRoot ?? DataLocation.localRoot
+        case .custom:
+            let trimmed = (customDataPath as NSString).expandingTildeInPath
+            return trimmed.isEmpty ? DataLocation.localRoot : URL(fileURLWithPath: trimmed, isDirectory: true)
+        case .local:
+            return DataLocation.localRoot
+        }
+    }
 
     static let defaultShortPrompts = [
         "Look away at something distant",
@@ -75,6 +106,70 @@ final class SettingsStore: ObservableObject {
         signalScreenShare = defaults.object(forKey: "signalScreenShare") as? Bool ?? true
         signalCalendar = defaults.object(forKey: "signalCalendar") as? Bool ?? false
         presentingApps = defaults.stringArray(forKey: "presentingApps") ?? []
+        // Default straight to iCloud Drive when it exists — cross-Mac out of the box.
+        let storedChoice = defaults.string(forKey: "dataLocationChoice").flatMap(DataLocationChoice.init)
+        dataLocationChoice = storedChoice ?? (DataLocation.iCloudAvailable ? .icloud : .local)
+        customDataPath = defaults.string(forKey: "customDataPath") ?? ""
+        importMirroredSettingsIfPresent()
+    }
+
+    // MARK: - iCloud Drive settings mirror
+
+    private struct Snapshot: Codable {
+        var shortIntervalMin: Int
+        var shortDurationMin: Int
+        var longDurationMin: Int
+        var longBreakEvery: Int
+        var idlePauseMin: Int
+        var postponeMin: Int
+        var shortPrompts: [String]
+        var longPrompts: [String]
+        var signalCameraMic: Bool
+        var signalScreenShare: Bool
+        var signalCalendar: Bool
+        var presentingApps: [String]
+    }
+
+    /// Mirror current settings into the data root (call after changes, debounced).
+    func writeMirroredSettings() {
+        let snapshot = Snapshot(
+            shortIntervalMin: shortIntervalMin, shortDurationMin: shortDurationMin,
+            longDurationMin: longDurationMin, longBreakEvery: longBreakEvery,
+            idlePauseMin: idlePauseMin, postponeMin: postponeMin,
+            shortPrompts: shortPrompts, longPrompts: longPrompts,
+            signalCameraMic: signalCameraMic, signalScreenShare: signalScreenShare,
+            signalCalendar: signalCalendar, presentingApps: presentingApps
+        )
+        let file = dataRoot.appendingPathComponent("settings.json")
+        do {
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(snapshot).write(to: file, options: .atomic)
+        } catch {
+            AppDelegate.log.error("settings mirror write failed: \(error)")
+        }
+    }
+
+    /// On launch / when the location changes: the mirrored file wins if present.
+    private func importMirroredSettingsIfPresent() {
+        let file = dataRoot.appendingPathComponent("settings.json")
+        guard let data = try? Data(contentsOf: file),
+              let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) else { return }
+        shortIntervalMin = snapshot.shortIntervalMin
+        shortDurationMin = snapshot.shortDurationMin
+        longDurationMin = snapshot.longDurationMin
+        longBreakEvery = snapshot.longBreakEvery
+        idlePauseMin = snapshot.idlePauseMin
+        postponeMin = snapshot.postponeMin
+        shortPrompts = snapshot.shortPrompts
+        longPrompts = snapshot.longPrompts
+        signalCameraMic = snapshot.signalCameraMic
+        signalScreenShare = snapshot.signalScreenShare
+        signalCalendar = snapshot.signalCalendar
+        presentingApps = snapshot.presentingApps
+        AppDelegate.log.notice("imported mirrored settings from data root")
     }
 
     /// Debug fast mode compresses minutes to seconds so cycles are testable in ~1 min.

@@ -121,19 +121,61 @@ struct SettingsView: View {
             Section {
                 Toggle("Launch Vishrama at login", isOn: $store.launchAtLogin)
             }
+
             Section {
-                LabeledContent("Behavior log") {
-                    Button("Show in Finder") {
-                        NSWorkspace.shared.activateFileViewerSelecting([AppDelegate.eventLogDirectory])
+                Picker("Store data in", selection: $store.dataLocationChoice) {
+                    Text("iCloud Drive (syncs across Macs)")
+                        .tag(SettingsStore.DataLocationChoice.icloud)
+                        .disabled(!DataLocation.iCloudAvailable)
+                    Text("This Mac only").tag(SettingsStore.DataLocationChoice.local)
+                    Text("Custom folder").tag(SettingsStore.DataLocationChoice.custom)
+                }
+                .pickerStyle(.radioGroup)
+
+                if store.dataLocationChoice == .custom {
+                    LabeledContent("Folder") {
+                        HStack {
+                            Text(store.customDataPath.isEmpty ? "None chosen" : store.customDataPath)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .foregroundStyle(.secondary)
+                            Button("Choose…") { chooseCustomFolder() }
+                        }
                     }
                 }
+
+                LabeledContent("Current location") {
+                    HStack {
+                        Text(store.dataRoot.path)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundStyle(.secondary)
+                        Button("Show in Finder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([store.dataRoot])
+                        }
+                    }
+                }
+            } header: {
+                Text("Data")
             } footer: {
-                Text("Vishrama records break events (completed, skipped, postponed) locally so it can learn your rhythm. Nothing leaves this Mac.")
+                Text("Settings and break history live here (settings.json + events/). Point both your Macs at the same iCloud Drive or shared folder and Vishrama feels like one app across them. Nothing ever leaves your own storage.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func chooseCustomFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Use Folder"
+        if panel.runModal() == .OK, let url = panel.url {
+            store.customDataPath = url.path
+        }
     }
 }
 

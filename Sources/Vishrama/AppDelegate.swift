@@ -19,15 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let contextMonitor = ContextMonitor()
     private let notifications = NotificationManager()
 
-    static var eventLogDirectory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Vishrama/events", isDirectory: true)
-    }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         settings = SettingsStore()
         engine = ScheduleEngine(config: settings.configuration, startAt: Date())
-        eventLog = EventLogStore(directory: Self.eventLogDirectory)
+        remakeEventLog()
         settingsWindowController = SettingsWindowController(store: settings)
         settingsWindowController.activeSignals = { [weak self] in
             self?.contextMonitor.activeSignals ?? []
@@ -42,6 +37,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     guard let self else { return }
                     self.engine = ScheduleEngine(config: self.settings.configuration, startAt: Date())
                     self.rebuildSignalProviders()
+                    if self.eventLog.directory != self.currentEventsDirectory {
+                        self.remakeEventLog()
+                    }
+                    self.settings.writeMirroredSettings()
                     Self.log.notice("settings changed; engine rebuilt")
                 }
             }
@@ -62,7 +61,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.apply(self.engine.reset(now: Date()))
         }
-        historyWindowController = HistoryWindowController(store: eventLog)
         statusItemController.onHistory = { [weak self] in
             self?.historyWindowController.show()
         }
@@ -99,6 +97,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static var isFastMode: Bool {
         ProcessInfo.processInfo.environment["VISHRAMA_DEBUG_FAST"] == "1"
             || UserDefaults.standard.bool(forKey: "debugFast")
+    }
+
+    private var currentEventsDirectory: URL {
+        settings.dataRoot.appendingPathComponent("events", isDirectory: true)
+    }
+
+    /// (Re)point the event log at the chosen data root, bringing local
+    /// history along (copy-only; nothing is ever deleted).
+    private func remakeEventLog() {
+        let dir = currentEventsDirectory
+        if dir.path != DataLocation.localEventsDirectory.path {
+            DataLocation.copyMissingEventFiles(from: DataLocation.localEventsDirectory, to: dir)
+        }
+        eventLog = EventLogStore(directory: dir)
+        historyWindowController = HistoryWindowController(store: eventLog)
+        Self.log.notice("event log at \(dir.path, privacy: .public)")
     }
 
     private func rebuildSignalProviders() {
