@@ -52,6 +52,26 @@ final class SettingsStore: ObservableObject {
         case icloud, local, custom
     }
 
+    enum AdaptivityStrength: String, CaseIterable {
+        case gentle, normal, strong
+
+        var factor: Double {
+            switch self {
+            case .gentle: 1.25
+            case .normal: 1.5
+            case .strong: 2.0
+            }
+        }
+    }
+
+    /// Layer-2 pattern learning on/off + how boldly it stretches intervals.
+    @Published var patternLearningEnabled: Bool {
+        didSet { defaults.set(patternLearningEnabled, forKey: "patternLearningEnabled") }
+    }
+    @Published var adaptivityStrength: AdaptivityStrength {
+        didSet { defaults.set(adaptivityStrength.rawValue, forKey: "adaptivityStrength") }
+    }
+
     /// Where settings + history live. iCloud Drive by default so the app
     /// feels identical across Macs.
     @Published var dataLocationChoice: DataLocationChoice {
@@ -110,6 +130,9 @@ final class SettingsStore: ObservableObject {
         let storedChoice = defaults.string(forKey: "dataLocationChoice").flatMap(DataLocationChoice.init)
         dataLocationChoice = storedChoice ?? (DataLocation.iCloudAvailable ? .icloud : .local)
         customDataPath = defaults.string(forKey: "customDataPath") ?? ""
+        patternLearningEnabled = defaults.object(forKey: "patternLearningEnabled") as? Bool ?? true
+        adaptivityStrength = defaults.string(forKey: "adaptivityStrength")
+            .flatMap(AdaptivityStrength.init) ?? .normal
         importMirroredSettingsIfPresent()
     }
 

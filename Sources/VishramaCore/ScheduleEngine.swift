@@ -6,6 +6,10 @@ public final class ScheduleEngine {
     public let config: BreakConfiguration
     private(set) var state: ScheduleState
 
+    /// Pattern-learning multiplier applied to the work interval when
+    /// scheduling the NEXT break (1.0 = no change). Set by the shell.
+    public var intervalScale: Double = 1.0
+
     /// Consecutive skips since the last completed break (drives backoff + logs).
     public private(set) var backoffLevel = 0
     /// Recent skip/postpone weights for flow detection.
@@ -38,10 +42,10 @@ public final class ScheduleEngine {
                 if let quiet = quietUntil {
                     if now < quiet {
                         // Flow mode: whisper, don't take over; try again next interval.
-                        state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: completed)
+                        state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: completed)
                         return [
                             .notifyBreak(kind),
-                            .updateStatus(.working(remaining: config.shortInterval)),
+                            .updateStatus(.working(remaining: scaledInterval)),
                             .log(.notified, kind),
                         ]
                     }
@@ -98,8 +102,8 @@ public final class ScheduleEngine {
             }
             if totalIdle >= config.shortDuration {
                 // A real rest, even if shorter than the pending long break: restart the interval.
-                state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: completed)
-                return [.updateStatus(.working(remaining: config.shortInterval))]
+                state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: completed)
+                return [.updateStatus(.working(remaining: scaledInterval))]
             }
             // Brief absence: resume the frozen countdown.
             state = .working(breakDue: now.addingTimeInterval(remainingWork), completedShortBreaks: completed)
@@ -202,6 +206,11 @@ public final class ScheduleEngine {
         return []
     }
 
+    /// Work interval with the pattern-learning stretch applied.
+    private var scaledInterval: TimeInterval {
+        config.shortInterval * min(3.0, max(0.5, intervalScale))
+    }
+
     private func pendingBreakKind(completedShortBreaks: Int) -> BreakKind {
         completedShortBreaks >= config.longBreakEvery ? .long : .short
     }
@@ -211,7 +220,7 @@ public final class ScheduleEngine {
         // A completed break earns a clean slate.
         backoffLevel = 0
         skipWeights.removeAll()
-        state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: newCompleted)
-        return [.updateStatus(.working(remaining: config.shortInterval))]
+        state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: newCompleted)
+        return [.updateStatus(.working(remaining: scaledInterval))]
     }
 }

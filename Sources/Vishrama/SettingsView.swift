@@ -3,6 +3,7 @@ import VishramaCore
 
 struct SettingsView: View {
     @ObservedObject var store: SettingsStore
+    @ObservedObject var learner: PatternLearner
     /// Live signal readout, injected by the app.
     var activeSignals: () -> Set<VishramaCore.SignalKind> = { [] }
 
@@ -12,10 +13,68 @@ struct SettingsView: View {
                 .tabItem { Label("Breaks", systemImage: "cup.and.saucer") }
             contextTab
                 .tabItem { Label("Context", systemImage: "person.wave.2") }
+            adaptivityTab
+                .tabItem { Label("Adaptivity", systemImage: "brain") }
             generalTab
                 .tabItem { Label("General", systemImage: "gearshape") }
         }
-        .frame(width: 500, height: 560)
+        .frame(width: 520, height: 560)
+    }
+
+    /// Everything the pattern learner knows, out in the open.
+    private var adaptivityTab: some View {
+        Form {
+            Section {
+                Toggle("Learn from my behavior", isOn: $store.patternLearningEnabled)
+                Picker("When a pattern is found, stretch the interval", selection: $store.adaptivityStrength) {
+                    Text("Gently (×1.25)").tag(SettingsStore.AdaptivityStrength.gentle)
+                    Text("Normally (×1.5)").tag(SettingsStore.AdaptivityStrength.normal)
+                    Text("Strongly (×2)").tag(SettingsStore.AdaptivityStrength.strong)
+                }
+            } footer: {
+                Text("Vishrama mines your last 60 days of break history for contexts where you habitually skip (e.g. weekday mornings in the IDE) and quietly spaces breaks out there. It only acts on a pattern after \(PatternModel.minSamples)+ observations with a ≥\(Int(PatternModel.highSkipRate * 100))% skip rate.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("What it has learned") {
+                if learner.buckets.filter(\.stretches).isEmpty {
+                    Text("No strong patterns yet — keep using Vishrama and check back in a week or two.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(learner.buckets.filter(\.stretches)) { bucket in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(Self.bucketTitle(bucket))
+                                Text("\(bucket.skipped) skips over \(bucket.fired) breaks (\(Int(bucket.skipRate * 100))%)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { !learner.disabledKeys.contains(bucket.key) },
+                                set: { on in
+                                    if on { learner.disabledKeys.remove(bucket.key) }
+                                    else { learner.disabledKeys.insert(bucket.key) }
+                                }
+                            ))
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                        }
+                    }
+                    Button("Re-enable all patterns") { learner.disabledKeys.removeAll() }
+                        .disabled(learner.disabledKeys.isEmpty)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    static func bucketTitle(_ bucket: PatternBucket) -> String {
+        let day = bucket.dayClass == "weekday" ? "Weekdays" : "Weekends"
+        let slot = "\(bucket.hourSlot):00–\(bucket.hourSlot + 2):00"
+        let app = bucket.app == "other" ? "any app" : (bucket.app.components(separatedBy: ".").last ?? bucket.app)
+        return "\(day) \(slot) · in \(app)"
     }
 
     /// Signals that hold breaks back, with live on/off dots.

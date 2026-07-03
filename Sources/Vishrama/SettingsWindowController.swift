@@ -7,10 +7,12 @@ import VishramaCore
 final class SettingsWindowController {
     private var window: NSWindow?
     private let store: SettingsStore
+    private let learner: PatternLearner
     var activeSignals: () -> Set<VishramaCore.SignalKind> = { [] }
 
-    init(store: SettingsStore) {
+    init(store: SettingsStore, learner: PatternLearner) {
         self.store = store
+        self.learner = learner
     }
 
     func show() {
@@ -24,7 +26,7 @@ final class SettingsWindowController {
             window.title = "Vishrama Settings"
             let signals = activeSignals
             window.contentViewController = NSHostingController(
-                rootView: SettingsView(store: store, activeSignals: signals))
+                rootView: SettingsView(store: store, learner: learner, activeSignals: signals))
             window.isReleasedWhenClosed = false
             window.center()
             self.window = window

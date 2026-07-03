@@ -18,6 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsObserver: AnyCancellable?
     let contextMonitor = ContextMonitor()
     private let notifications = NotificationManager()
+    private let learner = PatternLearner()
+    private var learnerTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         settings = SettingsStore()
@@ -25,7 +27,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         remakeEventLog()
         // Ensure the config mirror exists from day one, not only after a change.
         settings.writeMirroredSettings()
-        settingsWindowController = SettingsWindowController(store: settings)
+
+        // Layer-2 learning recomputes every 6 hours (and whenever the event
+        // log moves — see remakeEventLog, which already ran once above).
+        let learnerTimer = Timer(timeInterval: 6 * 3600, target: self, selector: #selector(recomputePatterns), userInfo: nil, repeats: true)
+        RunLoop.main.add(learnerTimer, forMode: .common)
+        self.learnerTimer = learnerTimer
+        settingsWindowController = SettingsWindowController(store: settings, learner: learner)
         settingsWindowController.activeSignals = { [weak self] in
             self?.contextMonitor.activeSignals ?? []
         }
@@ -114,6 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         eventLog = EventLogStore(directory: dir)
         historyWindowController = HistoryWindowController(store: eventLog)
+        learner.recompute(from: eventLog)
         Self.log.notice("event log at \(dir.path, privacy: .public)")
     }
 
@@ -138,16 +147,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var lastSignals: Set<SignalKind> = []
 
+    @objc private func recomputePatterns() {
+        learner.recompute(from: eventLog)
+    }
+
     @objc private func timerFired() {
         let signals = contextMonitor.activeSignals
         if signals != lastSignals {
             Self.log.notice("signals changed: [\(signals.map(\.rawValue).sorted().joined(separator: ","), privacy: .public)]")
             lastSignals = signals
         }
+        let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        engine.intervalScale = learner.scale(
+            now: Date(),
+            app: frontmost,
+            enabled: settings.patternLearningEnabled,
+            strength: settings.adaptivityStrength.factor
+        )
         let context = ContextSnapshot(
             activeSignals: signals,
             idleSeconds: IdleMonitor.systemIdleSeconds(),
-            frontmostApp: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            frontmostApp: frontmost
         )
         apply(engine.tick(now: Date(), context: context))
     }

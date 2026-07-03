@@ -45,8 +45,10 @@ behavior** (skips, flow sessions) instead of nagging blindly.
 - **Adaptive**:
   - skip a break → it retries in 5/10/20 min (growing backoff), not a full cycle
   - three skips in 90 min → *flow mode*: 45 min of gentle notifications instead of overlays
-  - every event is logged (with hour, weekday, frontmost app, active signals) — the raw
-    material for pattern learning
+  - **pattern learning**: it mines your last 60 days of events for contexts where you
+    habitually skip (e.g. "weekday mornings in the IDE") and quietly spaces breaks out
+    there — only after 8+ observations at a ≥70% skip rate, and every learned rule is
+    visible in **Settings → Adaptivity** with a per-rule off switch. Nothing acts invisibly.
 - **History** — a humanized timeline of your last week: breaks taken, skipped, held back
   by meetings, flow sessions, pauses.
 - **Yours, everywhere** — data lives in `iCloud Drive ▸ Vishrama` by default
@@ -104,9 +106,8 @@ so every scheduling behavior is testable with an injected clock (46 tests and co
 
 ## Roadmap
 
-Pattern learning from your history (e.g. "always skips 9–11am in the IDE → stretch that
-interval") with a full transparency UI, pre-break heads-up, meeting-gap break suggestions,
-daily stats.
+Pre-break heads-up notification, meeting-gap break suggestions ("meeting in 10 min —
+good time for your break"), daily stats in the popover.
 
 ## License
 
