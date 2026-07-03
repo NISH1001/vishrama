@@ -34,6 +34,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private var paused = false
     /// Horizontal range of the pause/play glyph inside the title, for hit-testing.
     private var glyphRange: ClosedRange<CGFloat> = 0...0
+    /// Accessory apps don't get transient-popover dismissal for free; watch
+    /// for clicks in other apps and close ourselves.
+    private var outsideClickMonitor: Any?
 
     override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -121,10 +124,23 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if glyphRange.contains(x) {
             onTogglePause?()
         } else if popover.isShown {
-            popover.performClose(nil)
+            closePopover()
         } else {
             // The panel springs from the icon — no disjointed windows.
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown]
+            ) { [weak self] _ in
+                Task { @MainActor in self?.closePopover() }
+            }
+        }
+    }
+
+    private func closePopover() {
+        popover.performClose(nil)
+        if let monitor = outsideClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            outsideClickMonitor = nil
         }
     }
 

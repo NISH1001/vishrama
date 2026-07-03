@@ -44,33 +44,33 @@ struct PopoverView: View {
     let onSettings: () -> Void
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 12) {
             Button(action: onTogglePause) {
                 ZStack {
                     Circle()
                         .fill(.quaternary.opacity(0.6))
-                        .frame(width: 130, height: 130)
+                        .frame(width: 74, height: 74)
                     Image(systemName: model.paused ? "play.fill" : "pause.fill")
-                        .font(.system(size: 44, weight: .medium))
+                        .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(.primary.opacity(0.75))
                 }
             }
             .buttonStyle(.plain)
             .help(model.paused ? "Resume" : "Pause")
 
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 Text(model.timeText)
-                    .font(.system(size: 38, weight: .light).monospacedDigit())
+                    .font(.system(size: 26, weight: .light).monospacedDigit())
                 Text(model.subtitle)
-                    .font(.callout)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 14) {
+            HStack(spacing: 10) {
                 Button("Reset", action: onReset)
                 Button("Break Now", action: onBreakNow)
             }
-            .controlSize(.large)
+            .controlSize(.small)
 
             Divider()
 
@@ -82,9 +82,9 @@ struct PopoverView: View {
                 Button("Quit") { NSApp.terminate(nil) }
             }
             .buttonStyle(.link)
-            .font(.callout)
+            .font(.caption)
         }
-        .padding(22)
-        .frame(width: 280)
+        .padding(14)
+        .frame(width: 210)
     }
 }
