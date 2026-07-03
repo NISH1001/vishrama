@@ -70,6 +70,7 @@ behavior** (skips, flow sessions) instead of nagging blindly.
     habitually skip (e.g. "weekday mornings in the IDE") and quietly spaces breaks out
     there — only after 8+ observations at a ≥70% skip rate, and every learned rule is
     visible in **Settings → Adaptivity** with a per-rule off switch. Nothing acts invisibly.
+    Full algorithm write-up: [docs/adaptivity.md](docs/adaptivity.md).
 - **History** — a humanized timeline of your last week: breaks taken, skipped, held back
   by meetings, flow sessions, pauses.
 - **Yours, everywhere** — data lives in `iCloud Drive ▸ Vishrama` by default
@@ -79,20 +80,50 @@ behavior** (skips, flow sessions) instead of nagging blindly.
 
 ## Install
 
+vishrama is **not signed with an Apple Developer certificate** (it's a personal,
+self-signed build), so macOS Gatekeeper needs a little convincing the first time.
+This is normal for indie/self-built apps — here's the full walkthrough.
+
+### 1. Get the app into Applications
+
 1. Download `Vishrama-x.y.z.dmg` from [Releases](https://github.com/NISH1001/vishrama/releases).
-2. Open the DMG and drag **Vishrama** into **Applications**.
-3. First launch: **right-click Vishrama.app → Open → Open**. The app is self-signed (no
-   Apple Developer certificate), so Gatekeeper warns once. Alternatively:
-   `xattr -d com.apple.quarantine /Applications/Vishrama.app`
-4. Look for **🌻 25:00** in the menu bar — that's it. Click the timer for the panel,
-   click the flower to pause.
-5. Recommended first-run setup:
+2. Open the DMG and drag **Vishrama** onto the **Applications** shortcut.
+3. Eject the DMG.
+
+### 2. Get past Gatekeeper (one time only)
+
+Because the app isn't notarized by Apple, the first open is blocked with
+*"Vishrama" Not Opened* / *"Apple could not verify…"*. Two ways through:
+
+**The clicky way (macOS 15 Sequoia):**
+
+1. Double-click Vishrama once — let it fail. Click **Done** (not *Move to Trash!*).
+2. Open **System Settings → Privacy & Security**, scroll to the **Security** section.
+3. You'll see *"Vishrama" was blocked to protect your Mac* — click **Open Anyway**.
+4. Confirm with **Open Anyway** in the dialog (it may ask for your password/Touch ID).
+
+> On macOS 13/14 the shortcut still works: **right-click Vishrama.app → Open → Open**.
+
+**The terminal way (equivalent, faster):**
+
+```sh
+xattr -d com.apple.quarantine /Applications/Vishrama.app
+```
+
+Then open the app normally. Either way this is needed **once per downloaded copy** —
+after that it launches like any other app.
+
+### 3. First run
+
+1. Look for **🌻 25:00** in the menu bar — that's the whole app. Click the timer for
+   the panel; click the flower itself to pause/resume.
+2. Allow **notifications** when prompted — flow mode uses them instead of overlays.
+3. Recommended setup:
    - **Settings → General** → enable *Launch Vishrama at login*.
    - **Settings → General → Data** → keep *iCloud Drive* if you use multiple Macs
      (settings + history sync via `iCloud Drive ▸ Vishrama`).
    - **Settings → Context** → enable *Busy calendar event* if you want calendar
-     awareness (macOS will ask for Calendar access once).
-   - Allow **notifications** when prompted — flow mode uses them instead of overlays.
+     awareness (macOS asks for Calendar access once).
 
 ### Updating
 
