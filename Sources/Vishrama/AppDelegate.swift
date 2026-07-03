@@ -100,6 +100,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.timer = timer
 
         Self.log.notice("vishrama launched (fastMode: \(Self.isFastMode))")
+
+        // Screenshot support: VISHRAMA_DEBUG_OPEN=settings|history|popover|break
+        if let open = ProcessInfo.processInfo.environment["VISHRAMA_DEBUG_OPEN"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self else { return }
+                switch open {
+                case "settings": self.settingsWindowController.show()
+                case "history": self.historyWindowController.show()
+                case "popover": self.statusItemController.debugShowPopover()
+                case "break": self.apply(self.engine.breakNow(now: Date()))
+                default: break
+                }
+            }
+        }
     }
 
     /// Env var for direct launches; defaults key so fast mode also works via

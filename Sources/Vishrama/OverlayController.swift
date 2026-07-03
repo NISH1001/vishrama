@@ -39,7 +39,9 @@ final class OverlayController {
             window.level = .screenSaver
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
             // Never visible to screen capture / sharing, even if detection misses.
-            window.sharingType = .none
+            // (Debug env flag flips this so README screenshots are possible.)
+            window.sharingType =
+                ProcessInfo.processInfo.environment["VISHRAMA_DEBUG_CAPTURABLE"] == "1" ? .readOnly : .none
             window.isOpaque = false
             window.backgroundColor = .clear
             window.alphaValue = 0

@@ -5,6 +5,27 @@
 A mindful, **context-aware** break reminder for macOS. Part of the same family as
 [mastishka](https://github.com/NISH1001/mastishka) and [anicca](https://github.com/NISH1001/anicca).
 
+## A glimpse
+
+The whole app lives in the menu bar — the 🌻 is the pause button (it wilts to 🥀 while
+paused), and clicking the timer opens the panel:
+
+<p align="center">
+  <img src="docs/screenshots/popover.png" width="330" alt="Menu bar popover: countdown, pause circle, Reset / Break Now, History · Settings · Quit">
+</p>
+
+When a break is due (and you're *not* in a meeting), the screen softens into this —
+skippable, Esc postpones, and invisible to any screen share:
+
+<img src="docs/screenshots/overlay.png" alt="Full-screen break overlay: विश्राम, EYE BREAK, 'Look away at something distant', countdown, Postpone / Skip">
+
+Timing and messages live together per break type, and History shows what actually
+happened (breaks, skips, pauses, natural breaks while away):
+
+<p align="center">
+  <img src="docs/screenshots/settings-breaks.png" width="420" alt="Settings → Breaks: eye break interval, duration, and reminder messages in one card"> <img src="docs/screenshots/history.png" width="340" alt="History window: humanized event timeline">
+</p>
+
 ## Why
 
 I'm a long-time fan of [Take a Break](https://apps.apple.com/us/app/take-a-break-timer-reminder/id1457158844)

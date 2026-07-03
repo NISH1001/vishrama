@@ -136,6 +136,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
     }
 
+    /// Screenshot support: open the panel without a click.
+    func debugShowPopover() {
+        guard let button = statusItem.button else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+
     private func closePopover() {
         popover.performClose(nil)
         if let monitor = outsideClickMonitor {
