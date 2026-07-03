@@ -1,0 +1,267 @@
+import Foundation
+import Testing
+@testable import VishramaCore
+
+private let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
+
+private func makeEngine(
+    shortInterval: TimeInterval = 25 * 60,
+    shortDuration: TimeInterval = 5 * 60,
+    longDuration: TimeInterval = 10 * 60,
+    longBreakEvery: Int = 2
+) -> ScheduleEngine {
+    ScheduleEngine(
+        config: BreakConfiguration(
+            shortInterval: shortInterval,
+            shortDuration: shortDuration,
+            longDuration: longDuration,
+            longBreakEvery: longBreakEvery
+        ),
+        startAt: t0
+    )
+}
+
+/// Drive the engine through a completed break so cycle-counting tests can reuse it.
+private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: TimeInterval) -> Date {
+    _ = engine.tick(now: due, context: ContextSnapshot())
+    let end = due.addingTimeInterval(duration)
+    _ = engine.tick(now: end, context: ContextSnapshot())
+    return end
+}
+
+@Suite struct WorkingCountdown {
+    @Test func firstTickReportsFullIntervalRemaining() {
+        let engine = makeEngine()
+        let effects = engine.tick(now: t0, context: ContextSnapshot())
+        #expect(effects == [.updateStatus(.working(remaining: 25 * 60.0))])
+    }
+
+    @Test func countdownDecreasesWithTime() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let effects = engine.tick(now: t0.addingTimeInterval(60), context: ContextSnapshot())
+        #expect(effects == [.updateStatus(.working(remaining: 24 * 60.0))])
+    }
+}
+
+@Suite struct BreakFiring {
+    @Test func shortBreakFiresWhenDue() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        let effects = engine.tick(now: due, context: ContextSnapshot())
+        #expect(effects.contains(.showOverlay(.short)))
+        #expect(effects.contains(.updateStatus(.onBreak(kind: .short, remaining: 5 * 60.0))))
+    }
+
+    @Test func breakEndsAfterDurationAndWorkRestarts() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let end = due.addingTimeInterval(5 * 60)
+        let effects = engine.tick(now: end, context: ContextSnapshot())
+        #expect(effects.contains(.hideOverlay))
+        #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0))))
+    }
+
+    @Test func longBreakFiresAfterConfiguredCompletedShortBreaks() {
+        let engine = makeEngine(longBreakEvery: 2)
+        // Complete two short breaks.
+        var cursor = t0
+        for _ in 0..<2 {
+            cursor = completeBreak(engine, from: cursor.addingTimeInterval(25 * 60), duration: 5 * 60)
+        }
+        // Third break due should be long.
+        let due = cursor.addingTimeInterval(25 * 60)
+        let effects = engine.tick(now: due, context: ContextSnapshot())
+        #expect(effects.contains(.showOverlay(.long)))
+    }
+
+    @Test func cycleResetsAfterLongBreak() {
+        let engine = makeEngine(longBreakEvery: 1)
+        // One completed short break → next is long.
+        var cursor = completeBreak(engine, from: t0.addingTimeInterval(25 * 60), duration: 5 * 60)
+        cursor = completeBreak(engine, from: cursor.addingTimeInterval(25 * 60), duration: 10 * 60)
+        // After the long break the cycle restarts with a short one.
+        let due = cursor.addingTimeInterval(25 * 60)
+        let effects = engine.tick(now: due, context: ContextSnapshot())
+        #expect(effects.contains(.showOverlay(.short)))
+    }
+}
+
+@Suite struct SkipAndPostpone {
+    @Test func skipHidesOverlayAndRestartsFullInterval() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let effects = engine.skip(now: due.addingTimeInterval(10))
+        #expect(effects.contains(.hideOverlay))
+        #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0))))
+    }
+
+    @Test func skippedBreakDoesNotAdvanceLongBreakCycle() {
+        let engine = makeEngine(longBreakEvery: 1)
+        // Skip the first short break — the next break must still be short.
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.skip(now: due)
+        let nextDue = due.addingTimeInterval(25 * 60)
+        let effects = engine.tick(now: nextDue, context: ContextSnapshot())
+        #expect(effects.contains(.showOverlay(.short)))
+    }
+
+    @Test func postponeHidesOverlayAndRefiresAfterDelay() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let effects = engine.postpone(now: due)
+        #expect(effects.contains(.hideOverlay))
+        // 5 minutes later (postponeDelay) the break fires again.
+        let refire = engine.tick(now: due.addingTimeInterval(5 * 60), context: ContextSnapshot())
+        #expect(refire.contains(.showOverlay(.short)))
+    }
+}
+
+@Suite struct IdleHandling {
+    @Test func idleBeyondThresholdFreezesCountdown() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        // 3 minutes in, user has been idle for 2 minutes (threshold).
+        let now = t0.addingTimeInterval(3 * 60)
+        let effects = engine.tick(now: now, context: ContextSnapshot(idleSeconds: 120))
+        // Countdown freezes at the moment activity stopped: 25 - (3-2) = 24 min.
+        #expect(effects == [.updateStatus(.idlePaused(remaining: 24 * 60.0))])
+    }
+
+    @Test func returningFromShortIdleResumesFrozenCountdown() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        _ = engine.tick(now: t0.addingTimeInterval(3 * 60), context: ContextSnapshot(idleSeconds: 120))
+        // User returns 1 minute later (total idle 3 min < break duration).
+        let back = t0.addingTimeInterval(4 * 60)
+        let effects = engine.tick(now: back, context: ContextSnapshot(idleSeconds: 0))
+        #expect(effects == [.updateStatus(.working(remaining: 24 * 60.0))])
+    }
+
+    @Test func longIdleCountsAsNaturalBreakAndResetsTimer() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        _ = engine.tick(now: t0.addingTimeInterval(3 * 60), context: ContextSnapshot(idleSeconds: 120))
+        // User returns after 6 more minutes: total idle ≥ short break duration (5 min).
+        let back = t0.addingTimeInterval(9 * 60)
+        let effects = engine.tick(now: back, context: ContextSnapshot(idleSeconds: 0))
+        #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0))))
+    }
+
+    @Test func idleLongerThanLongBreakAdvancesCycle() {
+        let engine = makeEngine(longBreakEvery: 1)
+        // Complete one short break so the next would be long.
+        let cursor = completeBreak(engine, from: t0.addingTimeInterval(25 * 60), duration: 5 * 60)
+        // Now go idle for ≥ long break duration (10 min) — counts as the long break.
+        let idleAt = cursor.addingTimeInterval(3 * 60)
+        _ = engine.tick(now: idleAt, context: ContextSnapshot(idleSeconds: 120))
+        let back = idleAt.addingTimeInterval(11 * 60)
+        _ = engine.tick(now: back, context: ContextSnapshot(idleSeconds: 0))
+        // Cycle reset: the next due break is short again.
+        let due = back.addingTimeInterval(25 * 60)
+        let effects = engine.tick(now: due, context: ContextSnapshot())
+        #expect(effects.contains(.showOverlay(.short)))
+    }
+}
+
+@Suite struct ManualTrigger {
+    @Test func breakNowFiresImmediately() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let effects = engine.breakNow(now: t0.addingTimeInterval(60))
+        #expect(effects.contains(.showOverlay(.short)))
+    }
+
+    @Test func breakNowDuringBreakDoesNothing() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        #expect(engine.breakNow(now: due) == [])
+    }
+}
+
+@Suite struct EventLogging {
+    @Test func firingLogsFiredEvent() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        let effects = engine.tick(now: due, context: ContextSnapshot())
+        #expect(effects.contains(.log(.fired, .short)))
+    }
+
+    @Test func completionLogsCompletedEvent() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let effects = engine.tick(now: due.addingTimeInterval(5 * 60), context: ContextSnapshot())
+        #expect(effects.contains(.log(.completed, .short)))
+    }
+
+    @Test func skipLogsSkippedEvent() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        #expect(engine.skip(now: due).contains(.log(.skipped, .short)))
+    }
+
+    @Test func postponeLogsPostponedEvent() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        #expect(engine.postpone(now: due).contains(.log(.postponed, .short)))
+    }
+
+    @Test func longAbsenceLogsNaturalBreak() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        _ = engine.tick(now: t0.addingTimeInterval(3 * 60), context: ContextSnapshot(idleSeconds: 120))
+        let back = t0.addingTimeInterval(9 * 60)
+        let effects = engine.tick(now: back, context: ContextSnapshot(idleSeconds: 0))
+        #expect(effects.contains(.log(.naturalBreak, .short)))
+    }
+}
+
+@Suite struct ManualPause {
+    @Test func pauseFreezesCountdownAndBlocksBreaks() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let paused = engine.togglePause(now: t0.addingTimeInterval(60))
+        #expect(paused.contains(.updateStatus(.manualPaused(remaining: 24 * 60.0))))
+        // Way past the original due time: still paused, no overlay.
+        let effects = engine.tick(now: t0.addingTimeInterval(60 * 60), context: ContextSnapshot())
+        #expect(effects == [.updateStatus(.manualPaused(remaining: 24 * 60.0))])
+    }
+
+    @Test func resumeContinuesFromFrozenRemaining() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        _ = engine.togglePause(now: t0.addingTimeInterval(60))
+        let later = t0.addingTimeInterval(60 * 60)
+        let resumed = engine.togglePause(now: later)
+        #expect(resumed.contains(.updateStatus(.working(remaining: 24 * 60.0))))
+        // Break fires 24 minutes after resume.
+        let effects = engine.tick(now: later.addingTimeInterval(24 * 60), context: ContextSnapshot())
+        #expect(effects.contains(.showOverlay(.short)))
+    }
+
+    @Test func pauseDuringBreakDismissesOverlay() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let effects = engine.togglePause(now: due.addingTimeInterval(2))
+        #expect(effects.contains(.hideOverlay))
+        #expect(effects.contains(.updateStatus(.manualPaused(remaining: 25 * 60.0))))
+    }
+
+    @Test func pauseWinsOverIdle() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        _ = engine.togglePause(now: t0.addingTimeInterval(60))
+        // Long idle while paused must not trigger idle handling or natural breaks.
+        let effects = engine.tick(now: t0.addingTimeInterval(30 * 60), context: ContextSnapshot(idleSeconds: 20 * 60))
+        #expect(effects == [.updateStatus(.manualPaused(remaining: 24 * 60.0))])
+    }
+}

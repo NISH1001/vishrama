@@ -1,0 +1,27 @@
+import Foundation
+
+/// What the menu bar should show. The shell owns presentation (icons, fonts);
+/// the engine only reports semantics.
+public enum StatusInfo: Equatable, Sendable {
+    case working(remaining: TimeInterval)
+    case onBreak(kind: BreakKind, remaining: TimeInterval)
+    case idlePaused(remaining: TimeInterval)
+    case manualPaused(remaining: TimeInterval)
+}
+
+/// Side effects the shell must perform after a tick or user action.
+public enum Effect: Equatable, Sendable {
+    case updateStatus(StatusInfo)
+    case showOverlay(BreakKind)
+    case hideOverlay
+    /// Record a behavior event; the shell enriches it with timestamp/app/signals.
+    case log(BreakEventKind, BreakKind?)
+}
+
+/// Internal engine state.
+enum ScheduleState: Equatable, Sendable {
+    case working(breakDue: Date, completedShortBreaks: Int)
+    case breakActive(kind: BreakKind, endsAt: Date, completedShortBreaks: Int)
+    case idlePaused(remainingWork: TimeInterval, completedShortBreaks: Int, idleStart: Date)
+    case manuallyPaused(remainingWork: TimeInterval, completedShortBreaks: Int)
+}
