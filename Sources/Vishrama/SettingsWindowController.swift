@@ -34,4 +34,8 @@ final class SettingsWindowController {
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
+
+    func close() {
+        window?.orderOut(nil)
+    }
 }

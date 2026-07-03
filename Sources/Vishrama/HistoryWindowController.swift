@@ -29,4 +29,8 @@ final class HistoryWindowController {
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
+
+    func close() {
+        window?.orderOut(nil)
+    }
 }

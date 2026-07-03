@@ -14,6 +14,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private lazy var popover: NSPopover = {
         let popover = NSPopover()
         popover.behavior = .transient
+        // Pin to dark so the panel reads the same on every macOS material
+        // (Tahoe's Liquid Glass renders the default far too light for our text).
+        popover.appearance = NSAppearance(named: .darkAqua)
         popover.contentViewController = NSHostingController(rootView: PopoverView(
             model: statusModel,
             onTogglePause: { [weak self] in self?.onTogglePause?() },
@@ -30,6 +33,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var onReset: (() -> Void)?
     var onSettings: (() -> Void)?
     var onHistory: (() -> Void)?
+    /// Fired on any click of the status item — lets the app tuck auxiliary
+    /// windows (Settings/History) away, keeping the menu-bar feel transient.
+    var onStatusInteraction: (() -> Void)?
 
     private var paused = false
     /// Horizontal range of the pause/play glyph inside the title, for hit-testing.
@@ -116,6 +122,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func statusItemClicked() {
         guard let button = statusItem.button, let event = NSApp.currentEvent else { return }
+        onStatusInteraction?()
         if event.type == .rightMouseUp {
             showMenu()
             return

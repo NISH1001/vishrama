@@ -74,6 +74,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItemController.onHistory = { [weak self] in
             self?.historyWindowController.show()
         }
+        // Any menu-bar interaction tucks the auxiliary windows away.
+        statusItemController.onStatusInteraction = { [weak self] in
+            self?.settingsWindowController.close()
+            self?.historyWindowController.close()
+        }
 
         overlayController = OverlayController()
         overlayController.promptsProvider = { [weak self] kind in
