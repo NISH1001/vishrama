@@ -5,9 +5,17 @@
 A mindful, **context-aware** break reminder for macOS. Part of the same family as
 [mastishka](https://github.com/NISH1001/mastishka) and [anicca](https://github.com/NISH1001/anicca).
 
-Inspired by *Take a Break*, but smarter: classic pomodoro-style break scheduling that also
-**knows when not to interrupt you** (meetings, screen sharing, calendar events) and
-**learns from your behavior** (skips, flow sessions) instead of nagging blindly.
+## Why
+
+I'm a long-time fan of [Take a Break](https://apps.apple.com/us/app/take-a-break-timer-reminder/id1457158844)
+by MiiDii — it's what got me into the habit of stepping away from the screen. But it has
+its limits: it happily throws a full-screen overlay while you're sharing your screen in a
+meeting, and skipping a break teaches it nothing. I wanted those smarts, plus far more
+customizability for how *I* work — so I built vishrama.
+
+The result keeps the classic pomodoro-style break scheduling, but it also **knows when not
+to interrupt you** (meetings, screen sharing, calendar events) and **learns from your
+behavior** (skips, flow sessions) instead of nagging blindly.
 
 ## Features
 
@@ -79,3 +87,7 @@ so every scheduling behavior is testable with an injected clock (46 tests and co
 Pattern learning from your history (e.g. "always skips 9–11am in the IDE → stretch that
 interval") with a full transparency UI, pre-break heads-up, meeting-gap break suggestions,
 daily stats.
+
+## License
+
+[MIT](LICENSE)
