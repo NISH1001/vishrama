@@ -14,7 +14,8 @@ public final class ScheduleEngine {
     public func tick(now: Date, context: ContextSnapshot) -> [Effect] {
         switch state {
         case .working(let breakDue, let completed):
-            if context.idleSeconds >= config.idlePauseThreshold {
+            // Sitting quietly in a meeting is not "away": only idle-pause when no signals.
+            if context.idleSeconds >= config.idlePauseThreshold, context.activeSignals.isEmpty {
                 // Freeze the countdown at the moment activity stopped.
                 let idleStart = now.addingTimeInterval(-context.idleSeconds)
                 let remaining = max(0, breakDue.timeIntervalSince(idleStart))
@@ -23,11 +24,41 @@ public final class ScheduleEngine {
             }
             if now >= breakDue {
                 let kind = pendingBreakKind(completedShortBreaks: completed)
+                if !context.activeSignals.isEmpty {
+                    state = .pendingSuppressed(dueSince: breakDue, clearSince: nil, completedShortBreaks: completed)
+                    return [.updateStatus(.suppressed(overdue: now.timeIntervalSince(breakDue))), .log(.suppressedStart, kind)]
+                }
                 let duration = config.duration(of: kind)
                 state = .breakActive(kind: kind, endsAt: now.addingTimeInterval(duration), completedShortBreaks: completed)
                 return [.showOverlay(kind), .updateStatus(.onBreak(kind: kind, remaining: duration)), .log(.fired, kind)]
             }
             return [.updateStatus(.working(remaining: breakDue.timeIntervalSince(now)))]
+
+        case .pendingSuppressed(let dueSince, let clearSince, let completed):
+            let kind = pendingBreakKind(completedShortBreaks: completed)
+            let overdue = now.timeIntervalSince(dueSince)
+            if !context.activeSignals.isEmpty {
+                // (Re)entered a busy context: any grace countdown restarts.
+                if clearSince != nil {
+                    state = .pendingSuppressed(dueSince: dueSince, clearSince: nil, completedShortBreaks: completed)
+                }
+                return [.updateStatus(.suppressed(overdue: overdue))]
+            }
+            guard let clearedAt = clearSince else {
+                state = .pendingSuppressed(dueSince: dueSince, clearSince: now, completedShortBreaks: completed)
+                return [.updateStatus(.suppressed(overdue: overdue))]
+            }
+            if now.timeIntervalSince(clearedAt) >= config.suppressionGrace {
+                let duration = config.duration(of: kind)
+                state = .breakActive(kind: kind, endsAt: now.addingTimeInterval(duration), completedShortBreaks: completed)
+                return [
+                    .log(.suppressedEnd, kind),
+                    .showOverlay(kind),
+                    .updateStatus(.onBreak(kind: kind, remaining: duration)),
+                    .log(.fired, kind),
+                ]
+            }
+            return [.updateStatus(.suppressed(overdue: overdue))]
 
         case .breakActive(let kind, let endsAt, let completed):
             if now >= endsAt {
@@ -78,6 +109,10 @@ public final class ScheduleEngine {
         case .manuallyPaused(let remainingWork, let completed):
             state = .working(breakDue: now.addingTimeInterval(remainingWork), completedShortBreaks: completed)
             return [.updateStatus(.working(remaining: remainingWork))]
+        case .pendingSuppressed(_, _, let completed):
+            // Pausing while a break waits out a meeting: the break stays owed (fires on resume).
+            state = .manuallyPaused(remainingWork: 0, completedShortBreaks: completed)
+            return [.updateStatus(.manualPaused(remaining: 0))]
         }
     }
 

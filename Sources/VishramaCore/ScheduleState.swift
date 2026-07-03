@@ -7,6 +7,8 @@ public enum StatusInfo: Equatable, Sendable {
     case onBreak(kind: BreakKind, remaining: TimeInterval)
     case idlePaused(remaining: TimeInterval)
     case manualPaused(remaining: TimeInterval)
+    /// A break is due but context (meeting, screen share, …) is holding it back.
+    case suppressed(overdue: TimeInterval)
 }
 
 /// Side effects the shell must perform after a tick or user action.
@@ -24,4 +26,6 @@ enum ScheduleState: Equatable, Sendable {
     case breakActive(kind: BreakKind, endsAt: Date, completedShortBreaks: Int)
     case idlePaused(remainingWork: TimeInterval, completedShortBreaks: Int, idleStart: Date)
     case manuallyPaused(remainingWork: TimeInterval, completedShortBreaks: Int)
+    /// Break due but suppressed by context; clearSince tracks the all-clear grace wait.
+    case pendingSuppressed(dueSince: Date, clearSince: Date?, completedShortBreaks: Int)
 }

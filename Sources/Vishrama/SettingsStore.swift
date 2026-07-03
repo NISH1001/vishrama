@@ -35,6 +35,19 @@ final class SettingsStore: ObservableObject {
     @Published var launchAtLogin: Bool {
         didSet { updateLoginItem() }
     }
+    @Published var signalCameraMic: Bool {
+        didSet { defaults.set(signalCameraMic, forKey: "signalCameraMic") }
+    }
+    @Published var signalScreenShare: Bool {
+        didSet { defaults.set(signalScreenShare, forKey: "signalScreenShare") }
+    }
+    @Published var signalCalendar: Bool {
+        didSet { defaults.set(signalCalendar, forKey: "signalCalendar") }
+    }
+    /// Bundle IDs treated as "presenting" whenever they run (e.g. Keynote).
+    @Published var presentingApps: [String] {
+        didSet { defaults.set(presentingApps, forKey: "presentingApps") }
+    }
 
     static let defaultShortPrompts = [
         "Look away at something distant",
@@ -58,6 +71,10 @@ final class SettingsStore: ObservableObject {
         shortPrompts = defaults.stringArray(forKey: "shortPrompts") ?? Self.defaultShortPrompts
         longPrompts = defaults.stringArray(forKey: "longPrompts") ?? Self.defaultLongPrompts
         launchAtLogin = SMAppService.mainApp.status == .enabled
+        signalCameraMic = defaults.object(forKey: "signalCameraMic") as? Bool ?? true
+        signalScreenShare = defaults.object(forKey: "signalScreenShare") as? Bool ?? true
+        signalCalendar = defaults.object(forKey: "signalCalendar") as? Bool ?? false
+        presentingApps = defaults.stringArray(forKey: "presentingApps") ?? []
     }
 
     /// Debug fast mode compresses minutes to seconds so cycles are testable in ~1 min.

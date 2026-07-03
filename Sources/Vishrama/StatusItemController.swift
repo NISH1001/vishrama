@@ -41,7 +41,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             render(time: Self.format(remaining))
         case .onBreak(_, let remaining):
             paused = false
-            render(time: Self.format(remaining), onBreak: true)
+            render(time: Self.format(remaining), badge: "☕")
         case .idlePaused(let remaining):
             paused = false
             // Dimmed time = auto-paused because you're away.
@@ -49,6 +49,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         case .manualPaused(let remaining):
             paused = true
             render(time: Self.format(remaining), dimmed: true)
+        case .suppressed(let overdue):
+            paused = false
+            // Break is owed but held back by a meeting/share.
+            render(time: "+\(Self.format(overdue))", badge: "⏳")
         }
         pauseItem?.title = paused ? "Resume" : "Pause"
     }
@@ -60,15 +64,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private static let glyphFont = NSFont.systemFont(
         ofSize: 13, weight: .medium)
 
-    /// Compose "🌻 <time>" — the flower itself is the pause/play button
+    /// Compose "🌻 <badge> <time>" — the flower itself is the pause/play button
     /// (wilts to 🥀 while paused). Remember where it sits for hit-testing.
-    private func render(time: String, onBreak: Bool = false, dimmed: Bool = false) {
+    private func render(time: String, badge: String? = nil, dimmed: Bool = false) {
         let flower = paused ? "🥀" : "🌻"
         let timeColor: NSColor = dimmed ? .tertiaryLabelColor : .labelColor
         let head = NSMutableAttributedString(
             string: flower, attributes: [.font: Self.glyphFont])
         let flowerWidth = head.size().width
-        let rest = onBreak ? "  ☕ \(time)" : "  \(time)"
+        let rest = badge.map { "  \($0) \(time)" } ?? "  \(time)"
         head.append(NSAttributedString(
             string: rest,
             attributes: [.font: Self.textFont, .foregroundColor: timeColor]))

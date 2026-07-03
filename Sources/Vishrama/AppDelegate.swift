@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settings: SettingsStore!
     private var settingsWindowController: SettingsWindowController!
     private var settingsObserver: AnyCancellable?
+    let contextMonitor = ContextMonitor()
 
     static var eventLogDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -26,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine = ScheduleEngine(config: settings.configuration, startAt: Date())
         eventLog = EventLogStore(directory: Self.eventLogDirectory)
         settingsWindowController = SettingsWindowController(store: settings)
+        settingsWindowController.activeSignals = { [weak self] in
+            self?.contextMonitor.activeSignals ?? []
+        }
+        rebuildSignalProviders()
 
         // Settings edits rebuild the engine (countdown restarts with new values).
         settingsObserver = settings.objectWillChange
@@ -34,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Task { @MainActor in
                     guard let self else { return }
                     self.engine = ScheduleEngine(config: self.settings.configuration, startAt: Date())
+                    self.rebuildSignalProviders()
                     Self.log.notice("settings changed; engine rebuilt")
                 }
             }
@@ -79,9 +85,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             || UserDefaults.standard.bool(forKey: "debugFast")
     }
 
+    private func rebuildSignalProviders() {
+        var providers: [SignalProvider] = []
+        if settings.signalCameraMic {
+            providers.append(CameraMicSignal())
+        }
+        if settings.signalScreenShare {
+            let signal = ScreenShareSignal()
+            signal.presentingBundleIDs = { [weak self] in
+                Set(self?.settings.presentingApps.map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty } ?? [])
+            }
+            providers.append(signal)
+        }
+        if settings.signalCalendar {
+            providers.append(CalendarSignal())
+        }
+        contextMonitor.setProviders(providers)
+    }
+
     @objc private func timerFired() {
         let context = ContextSnapshot(
-            activeSignals: [],
+            activeSignals: contextMonitor.activeSignals,
             idleSeconds: IdleMonitor.systemIdleSeconds(),
             frontmostApp: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         )
@@ -108,7 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     event: eventKind,
                     breakKind: breakKind,
                     app: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
-                    signals: [],
+                    signals: contextMonitor.activeSignals.map(\.rawValue).sorted(),
                     idleSec: IdleMonitor.systemIdleSeconds()
                 )
                 do {

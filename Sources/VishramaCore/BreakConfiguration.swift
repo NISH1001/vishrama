@@ -16,6 +16,8 @@ public struct BreakConfiguration: Sendable, Equatable {
     public var idlePauseThreshold: TimeInterval
     /// Postpone pushes the break out by this much.
     public var postponeDelay: TimeInterval
+    /// After a meeting/share ends, wait this long before showing the overdue break.
+    public var suppressionGrace: TimeInterval
 
     public init(
         shortInterval: TimeInterval = 25 * 60,
@@ -23,7 +25,8 @@ public struct BreakConfiguration: Sendable, Equatable {
         longDuration: TimeInterval = 10 * 60,
         longBreakEvery: Int = 2,
         idlePauseThreshold: TimeInterval = 120,
-        postponeDelay: TimeInterval = 5 * 60
+        postponeDelay: TimeInterval = 5 * 60,
+        suppressionGrace: TimeInterval = 60
     ) {
         self.shortInterval = shortInterval
         self.shortDuration = shortDuration
@@ -31,6 +34,7 @@ public struct BreakConfiguration: Sendable, Equatable {
         self.longBreakEvery = longBreakEvery
         self.idlePauseThreshold = idlePauseThreshold
         self.postponeDelay = postponeDelay
+        self.suppressionGrace = suppressionGrace
     }
 
     public func duration(of kind: BreakKind) -> TimeInterval {

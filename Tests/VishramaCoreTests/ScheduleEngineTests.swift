@@ -265,3 +265,68 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(effects == [.updateStatus(.manualPaused(remaining: 24 * 60.0))])
     }
 }
+
+@Suite struct ContextSuppression {
+    let meeting = ContextSnapshot(activeSignals: [.cameraMic])
+
+    @Test func breakDueDuringMeetingIsSuppressed() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        let effects = engine.tick(now: due, context: meeting)
+        #expect(!effects.contains(.showOverlay(.short)))
+        #expect(effects.contains(.updateStatus(.suppressed(overdue: 0))))
+        #expect(effects.contains(.log(.suppressedStart, .short)))
+    }
+
+    @Test func overdueTimeGrowsWhileSuppressed() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: meeting)
+        let effects = engine.tick(now: due.addingTimeInterval(120), context: meeting)
+        #expect(effects.contains(.updateStatus(.suppressed(overdue: 120))))
+    }
+
+    @Test func breakFiresAfterSignalsClearPlusGrace() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: meeting)
+        // Meeting ends 10 min later.
+        let clear = due.addingTimeInterval(10 * 60)
+        let clearEffects = engine.tick(now: clear, context: ContextSnapshot())
+        #expect(!clearEffects.contains(.showOverlay(.short)))
+        // 60s grace after all-clear, the break fires.
+        let effects = engine.tick(now: clear.addingTimeInterval(60), context: ContextSnapshot())
+        #expect(effects.contains(.showOverlay(.short)))
+        #expect(effects.contains(.log(.suppressedEnd, .short)))
+    }
+
+    @Test func signalReturningDuringGraceRestartsWait() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: meeting)
+        let clear = due.addingTimeInterval(10 * 60)
+        _ = engine.tick(now: clear, context: ContextSnapshot())
+        // 30s into the grace the meeting resumes.
+        _ = engine.tick(now: clear.addingTimeInterval(30), context: meeting)
+        // 60s after the FIRST clear: must NOT fire (wait restarted).
+        let effects = engine.tick(now: clear.addingTimeInterval(60), context: meeting)
+        #expect(!effects.contains(.showOverlay(.short)))
+    }
+
+    @Test func meetingPreventsIdlePause() {
+        // Sitting quietly in a meeting is not "away": countdown keeps running.
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let now = t0.addingTimeInterval(10 * 60)
+        let effects = engine.tick(now: now, context: ContextSnapshot(activeSignals: [.cameraMic], idleSeconds: 300))
+        #expect(effects == [.updateStatus(.working(remaining: 15 * 60.0))])
+    }
+
+    @Test func breakNeverFiresMidMeetingEvenLongAfterDue() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: meeting)
+        let effects = engine.tick(now: due.addingTimeInterval(60 * 60), context: meeting)
+        #expect(!effects.contains(.showOverlay(.short)))
+    }
+}
