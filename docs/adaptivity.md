@@ -81,6 +81,110 @@ adjustment happens, which is the correct behavior: breaks are working there.
 - The model is derived — delete or edit the JSONL log and the model follows.
   Nothing acts invisibly, nothing leaves your machine.
 
+## Technically speaking: statistics, not ML
+
+There is no machine learning here — no training loop, no weights, no gradient descent.
+The "model" is classical **Bayesian rate estimation plus a fixed decision rule**,
+recomputed from scratch on every pass. Here's the math.
+
+### The estimator
+
+Within one bucket, treat each fired break as an independent Bernoulli trial:
+
+```
+skip ~ Bernoulli(p)        p = the (unknown) true skip probability in this context
+```
+
+We want to estimate `p` from `n` fired breaks of which `s` were skipped. The naive
+estimate `s/n` is dangerous at small samples (1 skip out of 1 break → "100%!").
+Instead, place a uniform prior on `p`:
+
+```
+p ~ Beta(α = 1, β = 1)     (uniform: every skip rate equally plausible a priori)
+```
+
+After observing `s` skips in `n` trials, the posterior is:
+
+```
+p | data ~ Beta(1 + s, 1 + n − s)
+```
+
+and the **posterior mean** — the value vishrama uses — is:
+
+```
+          s + 1
+p̂  =  ─────────
+          n + 2
+```
+
+This is Laplace's *rule of succession*: the `+1/+2` acts like two phantom
+observations (one skip, one taken break), pulling small-sample estimates toward 50%.
+As `n` grows, the phantom evidence washes out and `p̂ → s/n`.
+
+### The decision rule
+
+A bucket becomes an active pattern iff both:
+
+```
+n ≥ 8          (evidence gate)
+p̂ ≥ 0.70       (effect-size gate)
+```
+
+and while you're in an active bucket's context, the next work interval becomes:
+
+```
+interval' = interval × k        k ∈ {1.25, 1.5, 2.0}  (your strength setting)
+```
+
+The thresholds are a hand-set policy, not learned — that's deliberate: the *estimate*
+is statistical, the *action* is a rule you can read.
+
+### Worked example
+
+Say over three weeks, on **weekday mornings 10:00–12:00 in your IDE**, vishrama fired
+10 breaks and you skipped 8:
+
+```
+p̂ = (8 + 1) / (10 + 2) = 9/12 = 0.75
+n = 10 ≥ 8   ✓
+p̂ = 0.75 ≥ 0.70   ✓        → pattern activates
+```
+
+With strength "normal" (×1.5), a 25-minute interval becomes **37.5 minutes** — but
+only weekday mornings, only in the IDE. Contrast two near-misses:
+
+- **Small sample:** 4 fired, 4 skipped → naive rate 100%, but
+  `p̂ = 5/6 ≈ 0.83` with `n = 4 < 8` → the evidence gate blocks it. Live with it
+  another week; if the habit is real, the gate opens.
+- **Mild preference:** 20 fired, 12 skipped → `p̂ = 13/22 ≈ 0.59 < 0.70` → no action.
+  You skip *often* there, but not so overwhelmingly that reminders are pointless.
+
+And the recovery direction: if a pattern activates but you start taking breaks again,
+new `fired`-without-`skipped` events push `p̂` below 0.70 within the 60-day window and
+the pattern deactivates by itself — no manual reset needed.
+
+### Complexity and lifecycle
+
+One recompute is a single fold over the log: **O(E)** time, O(buckets) memory, for
+E ≈ a few thousand events — microseconds, run at launch and every 6 hours. The
+60-day window means behavior older than two months simply stops counting; the
+"model" has no other memory.
+
+### Why not ML?
+
+1. **Data volume** — ~30–50 events/day is years short of what any real learner needs
+   to beat counting.
+2. **Explainability** — every action must reduce to one sentence a human can veto
+   ("you skipped 8 of 10 breaks here"). A posterior mean does; a neural net doesn't.
+3. **Asymmetric failure cost** — a wrong stretch means *missed health reminders*.
+   When wrong answers are costly and data is thin, a conservative estimator with
+   hard gates beats a clever one.
+
+If someday the log is rich enough, the natural upgrades stay in the same family:
+credible-interval gates instead of point-estimate thresholds (activate when
+`P(p > 0.7) ≥ 0.95`), or a hierarchical prior sharing evidence across related
+buckets. Still statistics, still explainable.
+
 ## Design principles
 
 1. **Conservative by default** — high thresholds (8 samples, 70%) mean weeks of real
