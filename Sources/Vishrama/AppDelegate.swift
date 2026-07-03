@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings = SettingsStore()
         engine = ScheduleEngine(config: settings.configuration, startAt: Date())
         remakeEventLog()
+        // Ensure the config mirror exists from day one, not only after a change.
+        settings.writeMirroredSettings()
         settingsWindowController = SettingsWindowController(store: settings)
         settingsWindowController.activeSignals = { [weak self] in
             self?.contextMonitor.activeSignals ?? []
