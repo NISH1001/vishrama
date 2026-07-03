@@ -6,6 +6,13 @@ public final class ScheduleEngine {
     public let config: BreakConfiguration
     private(set) var state: ScheduleState
 
+    /// Consecutive skips since the last completed break (drives backoff + logs).
+    public private(set) var backoffLevel = 0
+    /// Recent skip/postpone weights for flow detection.
+    private var skipWeights: [(at: Date, weight: Double)] = []
+    /// While set (and in the future), due breaks notify instead of taking the screen.
+    private var quietUntil: Date?
+
     public init(config: BreakConfiguration = BreakConfiguration(), startAt now: Date) {
         self.config = config
         self.state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: 0)
@@ -27,6 +34,18 @@ public final class ScheduleEngine {
                 if !context.activeSignals.isEmpty {
                     state = .pendingSuppressed(dueSince: breakDue, clearSince: nil, completedShortBreaks: completed)
                     return [.updateStatus(.suppressed(overdue: now.timeIntervalSince(breakDue))), .log(.suppressedStart, kind)]
+                }
+                if let quiet = quietUntil {
+                    if now < quiet {
+                        // Flow mode: whisper, don't take over; try again next interval.
+                        state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: completed)
+                        return [
+                            .notifyBreak(kind),
+                            .updateStatus(.working(remaining: config.shortInterval)),
+                            .log(.notified, kind),
+                        ]
+                    }
+                    quietUntil = nil
                 }
                 let duration = config.duration(of: kind)
                 state = .breakActive(kind: kind, endsAt: now.addingTimeInterval(duration), completedShortBreaks: completed)
@@ -92,27 +111,47 @@ public final class ScheduleEngine {
         }
     }
 
+    /// Menu action: start over — full interval, clean backoff/flow slate.
+    public func reset(now: Date) -> [Effect] {
+        let completed: Int
+        var effects: [Effect] = []
+        switch state {
+        case .working(_, let c), .idlePaused(_, let c, _), .manuallyPaused(_, let c),
+             .pendingSuppressed(_, _, let c):
+            completed = c
+        case .breakActive(_, _, let c):
+            completed = c
+            effects.append(.hideOverlay)
+        }
+        backoffLevel = 0
+        skipWeights.removeAll()
+        quietUntil = nil
+        state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: completed)
+        effects.append(.updateStatus(.working(remaining: config.shortInterval)))
+        return effects
+    }
+
     /// Menu-bar pause button: freeze everything until pressed again.
     public func togglePause(now: Date) -> [Effect] {
         switch state {
         case .working(let breakDue, let completed):
             let remaining = max(0, breakDue.timeIntervalSince(now))
             state = .manuallyPaused(remainingWork: remaining, completedShortBreaks: completed)
-            return [.updateStatus(.manualPaused(remaining: remaining))]
+            return [.updateStatus(.manualPaused(remaining: remaining)), .log(.paused, nil)]
         case .breakActive(_, _, let completed):
             // Pausing mid-break dismisses it; the full interval is owed on resume.
             state = .manuallyPaused(remainingWork: config.shortInterval, completedShortBreaks: completed)
-            return [.hideOverlay, .updateStatus(.manualPaused(remaining: config.shortInterval))]
+            return [.hideOverlay, .updateStatus(.manualPaused(remaining: config.shortInterval)), .log(.paused, nil)]
         case .idlePaused(let remainingWork, let completed, _):
             state = .manuallyPaused(remainingWork: remainingWork, completedShortBreaks: completed)
-            return [.updateStatus(.manualPaused(remaining: remainingWork))]
+            return [.updateStatus(.manualPaused(remaining: remainingWork)), .log(.paused, nil)]
         case .manuallyPaused(let remainingWork, let completed):
             state = .working(breakDue: now.addingTimeInterval(remainingWork), completedShortBreaks: completed)
-            return [.updateStatus(.working(remaining: remainingWork))]
+            return [.updateStatus(.working(remaining: remainingWork)), .log(.resumed, nil)]
         case .pendingSuppressed(_, _, let completed):
             // Pausing while a break waits out a meeting: the break stays owed (fires on resume).
             state = .manuallyPaused(remainingWork: 0, completedShortBreaks: completed)
-            return [.updateStatus(.manualPaused(remaining: 0))]
+            return [.updateStatus(.manualPaused(remaining: 0)), .log(.paused, nil)]
         }
     }
 
@@ -130,12 +169,16 @@ public final class ScheduleEngine {
         return [.showOverlay(kind), .updateStatus(.onBreak(kind: kind, remaining: duration))]
     }
 
-    /// User dismissed the break from the overlay.
+    /// User dismissed the break from the overlay. Retries after a growing
+    /// backoff delay instead of a full interval — the break is still owed.
     public func skip(now: Date) -> [Effect] {
         guard case .breakActive(let kind, _, let completed) = state else { return [] }
+        backoffLevel += 1
+        let delay = config.backoffDelay(level: backoffLevel)
         // Skipped breaks do not advance the long-break cycle.
-        state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: completed)
-        return [.hideOverlay, .updateStatus(.working(remaining: config.shortInterval)), .log(.skipped, kind)]
+        state = .working(breakDue: now.addingTimeInterval(delay), completedShortBreaks: completed)
+        return [.hideOverlay, .updateStatus(.working(remaining: delay)), .log(.skipped, kind)]
+            + recordDismissal(weight: 1.0, now: now)
     }
 
     /// User asked for a few more minutes (also Esc on the overlay).
@@ -143,6 +186,20 @@ public final class ScheduleEngine {
         guard case .breakActive(let kind, _, let completed) = state else { return [] }
         state = .working(breakDue: now.addingTimeInterval(config.postponeDelay), completedShortBreaks: completed)
         return [.hideOverlay, .updateStatus(.working(remaining: config.postponeDelay)), .log(.postponed, kind)]
+            + recordDismissal(weight: 0.5, now: now)
+    }
+
+    /// Track dismissals; enough weight inside the rolling window means the
+    /// user is in flow — stop taking the screen for a while.
+    private func recordDismissal(weight: Double, now: Date) -> [Effect] {
+        skipWeights.append((at: now, weight: weight))
+        skipWeights.removeAll { now.timeIntervalSince($0.at) > config.flowWindow }
+        let total = skipWeights.reduce(0) { $0 + $1.weight }
+        if total >= config.flowThreshold, quietUntil == nil {
+            quietUntil = now.addingTimeInterval(config.flowQuietDuration)
+            return [.log(.flowEnter, nil)]
+        }
+        return []
     }
 
     private func pendingBreakKind(completedShortBreaks: Int) -> BreakKind {
@@ -151,6 +208,9 @@ public final class ScheduleEngine {
 
     private func completeBreak(of kind: BreakKind, completedShortBreaks: Int, now: Date) -> [Effect] {
         let newCompleted = kind == .short ? completedShortBreaks + 1 : 0
+        // A completed break earns a clean slate.
+        backoffLevel = 0
+        skipWeights.removeAll()
         state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: newCompleted)
         return [.updateStatus(.working(remaining: config.shortInterval))]
     }

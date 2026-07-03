@@ -1,0 +1,57 @@
+import Foundation
+import UserNotifications
+import VishramaCore
+
+/// Gentle notifications used in flow mode instead of the overlay.
+@MainActor
+final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+    nonisolated static let takeBreakAction = "dev.nishparadox.vishrama.takeBreak"
+    nonisolated static let categoryID = "dev.nishparadox.vishrama.breakDue"
+
+    var onTakeBreak: (() -> Void)?
+    private let center = UNUserNotificationCenter.current()
+    private var authorized = false
+
+    func setup() {
+        center.delegate = self
+        let action = UNNotificationAction(identifier: Self.takeBreakAction, title: "Take it now")
+        let category = UNNotificationCategory(
+            identifier: Self.categoryID, actions: [action], intentIdentifiers: [])
+        center.setNotificationCategories([category])
+        center.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, error in
+            Task { @MainActor in
+                self?.authorized = granted
+                if let error {
+                    AppDelegate.log.error("notification auth failed: \(error)")
+                }
+            }
+        }
+    }
+
+    func notifyBreakDue(kind: BreakKind, prompt: String) {
+        guard authorized else { return }
+        let content = UNMutableNotificationContent()
+        content.title = kind == .short ? "Eye break is waiting 🌻" : "Standup break is waiting 🌻"
+        content.body = "\(prompt) — you seem to be in flow, so no takeover. Whenever you're ready."
+        content.categoryIdentifier = Self.categoryID
+        content.sound = nil
+        center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        if response.actionIdentifier == Self.takeBreakAction
+            || response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+            await MainActor.run { onTakeBreak?() }
+        }
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner]
+    }
+}

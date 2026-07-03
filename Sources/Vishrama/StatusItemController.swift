@@ -12,7 +12,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     var onBreakNow: (() -> Void)?
     var onTogglePause: (() -> Void)?
+    var onReset: (() -> Void)?
     var onSettings: (() -> Void)?
+    var onHistory: (() -> Void)?
 
     private var paused = false
     /// Horizontal range of the pause/play glyph inside the title, for hit-testing.
@@ -129,7 +131,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         breakNow.target = self
         menu.addItem(breakNow)
 
+        let reset = NSMenuItem(title: "Reset Timer", action: #selector(resetClicked), keyEquivalent: "r")
+        reset.target = self
+        menu.addItem(reset)
+
         menu.addItem(.separator())
+        let history = NSMenuItem(title: "History", action: #selector(historyClicked), keyEquivalent: "h")
+        history.target = self
+        menu.addItem(history)
+
         let settings = NSMenuItem(title: "Settings…", action: #selector(settingsClicked), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
@@ -153,5 +163,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func settingsClicked() {
         onSettings?()
+    }
+
+    @objc private func resetClicked() {
+        onReset?()
+    }
+
+    @objc private func historyClicked() {
+        onHistory?()
     }
 }

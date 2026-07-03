@@ -9,6 +9,9 @@ public enum BreakEventKind: String, Codable, Sendable, Equatable {
     case suppressedStart
     case suppressedEnd
     case flowEnter
+    case notified       // flow mode: notification instead of overlay
+    case paused         // user paused from the menu bar
+    case resumed
     case naturalBreak   // long idle counted as a break
 }
 

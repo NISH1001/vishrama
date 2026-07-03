@@ -18,6 +18,15 @@ public struct BreakConfiguration: Sendable, Equatable {
     public var postponeDelay: TimeInterval
     /// After a meeting/share ends, wait this long before showing the overdue break.
     public var suppressionGrace: TimeInterval
+    /// Retry delays after the 1st, 2nd, 3rd… consecutive skip (last one repeats).
+    public var backoffDelays: [TimeInterval]
+    /// Scales backoff delays: Gentle 2.0 / Normal 1.0 / Persistent 0.5.
+    public var backoffScale: Double
+    /// Skip-weight within this rolling window that means "user is in flow".
+    public var flowWindow: TimeInterval
+    public var flowThreshold: Double
+    /// How long flow mode quiets overlays once detected.
+    public var flowQuietDuration: TimeInterval
 
     public init(
         shortInterval: TimeInterval = 25 * 60,
@@ -26,7 +35,12 @@ public struct BreakConfiguration: Sendable, Equatable {
         longBreakEvery: Int = 2,
         idlePauseThreshold: TimeInterval = 120,
         postponeDelay: TimeInterval = 5 * 60,
-        suppressionGrace: TimeInterval = 60
+        suppressionGrace: TimeInterval = 60,
+        backoffDelays: [TimeInterval] = [5 * 60, 10 * 60, 20 * 60],
+        backoffScale: Double = 1.0,
+        flowWindow: TimeInterval = 90 * 60,
+        flowThreshold: Double = 3.0,
+        flowQuietDuration: TimeInterval = 45 * 60
     ) {
         self.shortInterval = shortInterval
         self.shortDuration = shortDuration
@@ -35,6 +49,18 @@ public struct BreakConfiguration: Sendable, Equatable {
         self.idlePauseThreshold = idlePauseThreshold
         self.postponeDelay = postponeDelay
         self.suppressionGrace = suppressionGrace
+        self.backoffDelays = backoffDelays
+        self.backoffScale = backoffScale
+        self.flowWindow = flowWindow
+        self.flowThreshold = flowThreshold
+        self.flowQuietDuration = flowQuietDuration
+    }
+
+    /// Delay before retrying after the Nth consecutive skip (1-based).
+    public func backoffDelay(level: Int) -> TimeInterval {
+        guard let last = backoffDelays.last else { return shortInterval }
+        let raw = level <= backoffDelays.count ? backoffDelays[level - 1] : last
+        return raw * backoffScale
     }
 
     public func duration(of kind: BreakKind) -> TimeInterval {

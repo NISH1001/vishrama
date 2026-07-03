@@ -89,13 +89,14 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
 }
 
 @Suite struct SkipAndPostpone {
-    @Test func skipHidesOverlayAndRestartsFullInterval() {
+    @Test func skipHidesOverlayAndRetriesAfterBackoff() {
         let engine = makeEngine()
         let due = t0.addingTimeInterval(25 * 60)
         _ = engine.tick(now: due, context: ContextSnapshot())
         let effects = engine.skip(now: due.addingTimeInterval(10))
         #expect(effects.contains(.hideOverlay))
-        #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0))))
+        // First skip: the break is owed again in 5 minutes, not a full interval.
+        #expect(effects.contains(.updateStatus(.working(remaining: 5 * 60.0))))
     }
 
     @Test func skippedBreakDoesNotAdvanceLongBreakCycle() {
@@ -328,5 +329,141 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         _ = engine.tick(now: due, context: meeting)
         let effects = engine.tick(now: due.addingTimeInterval(60 * 60), context: meeting)
         #expect(!effects.contains(.showOverlay(.short)))
+    }
+}
+
+@Suite struct SkipBackoff {
+    @Test func firstSkipRetriesAfterShortBackoffNotFullInterval() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.skip(now: due)
+        // 5 minutes later the break comes back (not 25).
+        let effects = engine.tick(now: due.addingTimeInterval(5 * 60), context: ContextSnapshot())
+        #expect(effects.contains(.showOverlay(.short)))
+    }
+
+    @Test func backoffDelayGrowsWithConsecutiveSkips() {
+        let engine = makeEngine()
+        var due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.skip(now: due)               // retry in 5
+        due = due.addingTimeInterval(5 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.skip(now: due)               // retry in 10
+        // 5 min later: too early now.
+        let early = engine.tick(now: due.addingTimeInterval(5 * 60), context: ContextSnapshot())
+        #expect(!early.contains(.showOverlay(.short)))
+        let onTime = engine.tick(now: due.addingTimeInterval(10 * 60), context: ContextSnapshot())
+        #expect(onTime.contains(.showOverlay(.short)))
+    }
+
+    @Test func completedBreakResetsBackoff() {
+        let engine = makeEngine()
+        var due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.skip(now: due)
+        due = due.addingTimeInterval(5 * 60)
+        // Complete this one fully.
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.tick(now: due.addingTimeInterval(5 * 60), context: ContextSnapshot())
+        // Next cycle: skip again → back to the FIRST backoff step (5 min).
+        let nextDue = due.addingTimeInterval(5 * 60 + 25 * 60)
+        _ = engine.tick(now: nextDue, context: ContextSnapshot())
+        _ = engine.skip(now: nextDue)
+        let effects = engine.tick(now: nextDue.addingTimeInterval(5 * 60), context: ContextSnapshot())
+        #expect(effects.contains(.showOverlay(.short)))
+    }
+
+    @Test func backoffLevelIsExposedForLogging() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        #expect(engine.backoffLevel == 0)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.skip(now: due)
+        #expect(engine.backoffLevel == 1)
+    }
+}
+
+@Suite struct FlowMode {
+    /// Drive three quick fire+skip rounds to trip flow detection.
+    private func skipThreeTimes(_ engine: ScheduleEngine) -> Date {
+        var due = t0.addingTimeInterval(25 * 60)
+        for delay in [5 * 60.0, 10 * 60.0] {
+            _ = engine.tick(now: due, context: ContextSnapshot())
+            _ = engine.skip(now: due)
+            due = due.addingTimeInterval(delay)
+        }
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.skip(now: due)
+        return due
+    }
+
+    @Test func threeSkipsInWindowEnterFlowQuiet() {
+        let engine = makeEngine()
+        let lastSkip = skipThreeTimes(engine)
+        // Third skip's backoff is 20 min; when that break comes due,
+        // flow mode swaps the overlay for a gentle notification.
+        let effects = engine.tick(now: lastSkip.addingTimeInterval(20 * 60), context: ContextSnapshot())
+        #expect(!effects.contains(.showOverlay(.short)))
+        #expect(effects.contains(.notifyBreak(.short)))
+    }
+
+    @Test func flowEnterIsLogged() {
+        let engine = makeEngine()
+        var due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.skip(now: due)
+        due = due.addingTimeInterval(5 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.skip(now: due)
+        due = due.addingTimeInterval(10 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let effects = engine.skip(now: due)
+        #expect(effects.contains(.log(.flowEnter, nil)))
+    }
+
+    @Test func flowQuietExpiresAndOverlaysReturn() {
+        let engine = makeEngine()
+        let lastSkip = skipThreeTimes(engine)
+        // Notified break during flow reschedules a full interval.
+        let notifyAt = lastSkip.addingTimeInterval(20 * 60)
+        _ = engine.tick(now: notifyAt, context: ContextSnapshot())
+        // Flow quiet lasts 45 min from the third skip; the next due break
+        // (25 min after the notification) is past it → overlay again.
+        let effects = engine.tick(now: notifyAt.addingTimeInterval(25 * 60), context: ContextSnapshot())
+        #expect(effects.contains(.showOverlay(.short)))
+    }
+}
+
+@Suite struct PauseLogging {
+    @Test func pauseAndResumeAreLogged() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let paused = engine.togglePause(now: t0.addingTimeInterval(60))
+        #expect(paused.contains(.log(.paused, nil)))
+        let resumed = engine.togglePause(now: t0.addingTimeInterval(120))
+        #expect(resumed.contains(.log(.resumed, nil)))
+    }
+}
+
+@Suite struct ResetTimer {
+    @Test func resetRestartsFullIntervalAndClearsBackoff() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.skip(now: due)   // backoff level 1
+        let effects = engine.reset(now: due.addingTimeInterval(60))
+        #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0))))
+        #expect(engine.backoffLevel == 0)
+    }
+
+    @Test func resetDuringBreakDismissesOverlay() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let effects = engine.reset(now: due)
+        #expect(effects.contains(.hideOverlay))
+        #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0))))
     }
 }

@@ -14,8 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var eventLog: EventLogStore!
     private var settings: SettingsStore!
     private var settingsWindowController: SettingsWindowController!
+    private var historyWindowController: HistoryWindowController!
     private var settingsObserver: AnyCancellable?
     let contextMonitor = ContextMonitor()
+    private let notifications = NotificationManager()
 
     static var eventLogDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -56,6 +58,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItemController.onSettings = { [weak self] in
             self?.settingsWindowController.show()
         }
+        statusItemController.onReset = { [weak self] in
+            guard let self else { return }
+            self.apply(self.engine.reset(now: Date()))
+        }
+        historyWindowController = HistoryWindowController(store: eventLog)
+        statusItemController.onHistory = { [weak self] in
+            self?.historyWindowController.show()
+        }
 
         overlayController = OverlayController()
         overlayController.promptsProvider = { [weak self] kind in
@@ -68,6 +78,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlayController.onPostpone = { [weak self] in
             guard let self else { return }
             self.apply(self.engine.postpone(now: Date()))
+        }
+
+        notifications.setup()
+        notifications.onTakeBreak = { [weak self] in
+            guard let self else { return }
+            self.apply(self.engine.breakNow(now: Date()))
         }
 
         // .common mode so the countdown keeps ticking while menus are open.
@@ -134,6 +150,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .hideOverlay:
                 overlayController.hide()
                 Self.log.notice("overlay hidden")
+            case .notifyBreak(let kind):
+                let prompt = settings.prompts(for: kind).first ?? "Take a pause"
+                notifications.notifyBreakDue(kind: kind, prompt: prompt)
+                Self.log.notice("flow-mode notification: \(kind.rawValue, privacy: .public)")
             case .log(let eventKind, let breakKind):
                 let event = BreakEvent(
                     ts: Date(),
