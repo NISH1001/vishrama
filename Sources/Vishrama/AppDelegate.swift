@@ -141,6 +141,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         eventLog = EventLogStore(directory: dir)
         historyWindowController = HistoryWindowController(store: eventLog)
+        // Clearing the log also resets what pattern learning knows.
+        historyWindowController.onCleared = { [weak self] in
+            guard let self else { return }
+            self.learner.recompute(from: self.eventLog)
+        }
         learner.recompute(from: eventLog)
         Self.log.notice("event log at \(dir.path, privacy: .public)")
     }

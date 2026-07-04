@@ -35,6 +35,17 @@ public final class EventLogStore {
         }
     }
 
+    /// Erase the entire log: remove every month file. The directory (and any
+    /// non-log files beside it, like settings.json) is left alone.
+    public func clear() throws {
+        guard FileManager.default.fileExists(atPath: directory.path) else { return }
+        let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "jsonl" }
+        for file in files {
+            try FileManager.default.removeItem(at: file)
+        }
+    }
+
     /// All events at or after `since`, across month files, in file order.
     /// Corrupt lines (torn writes) are skipped, never fatal.
     public func events(since: Date) throws -> [BreakEvent] {

@@ -76,3 +76,23 @@ private func makeEvent(ts: Date, event: BreakEventKind = .fired) -> BreakEvent {
         #expect(read.count == 2)
     }
 }
+
+@Suite struct EventLogClearing {
+    @Test func clearRemovesAllEventsAndLogStillWorks() throws {
+        let store = try makeTempStore()
+        let base = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        try store.append(makeEvent(ts: base))
+        try store.append(makeEvent(ts: base.addingTimeInterval(60)))
+        try store.clear()
+        #expect(try store.events(since: .distantPast).isEmpty)
+        // Appending after a clear starts cleanly.
+        try store.append(makeEvent(ts: base.addingTimeInterval(120)))
+        #expect(try store.events(since: .distantPast).count == 1)
+    }
+
+    @Test func clearOnEmptyStoreIsFine() throws {
+        let store = try makeTempStore()
+        try store.clear()
+        #expect(try store.events(since: .distantPast).isEmpty)
+    }
+}

@@ -5,6 +5,8 @@ import VishramaCore
 final class HistoryModel: ObservableObject {
     @Published var events: [BreakEvent] = []
     private let store: EventLogStore
+    /// Invoked after a clear so the app can refresh dependents (pattern learner).
+    var onCleared: (() -> Void)?
 
     init(store: EventLogStore) {
         self.store = store
@@ -14,13 +16,44 @@ final class HistoryModel: ObservableObject {
         let since = Date().addingTimeInterval(-7 * 86400)
         events = ((try? store.events(since: since)) ?? []).reversed()
     }
+
+    func clear() {
+        do {
+            try store.clear()
+        } catch {
+            AppDelegate.log.error("clearing event log failed: \(error)")
+        }
+        reload()
+        onCleared?()
+    }
 }
 
 /// Human-readable timeline of the last week of break events.
 struct HistoryView: View {
     @ObservedObject var model: HistoryModel
+    @State private var confirmingClear = false
 
     var body: some View {
+        content
+            .safeAreaInset(edge: .bottom) {
+                HStack {
+                    Spacer()
+                    Button("Clear Log…", role: .destructive) { confirmingClear = true }
+                        .disabled(model.events.isEmpty)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.bar)
+            }
+            .confirmationDialog("Clear all break history?", isPresented: $confirmingClear) {
+                Button("Clear Everything", role: .destructive) { model.clear() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently deletes the entire event log — the timeline AND everything pattern learning has observed. Settings are not affected. This cannot be undone.")
+            }
+    }
+
+    private var content: some View {
         Group {
             if model.events.isEmpty {
                 VStack(spacing: 8) {

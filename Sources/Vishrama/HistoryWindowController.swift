@@ -7,6 +7,11 @@ final class HistoryWindowController {
     private var window: NSWindow?
     private let model: HistoryModel
 
+    var onCleared: (() -> Void)? {
+        get { model.onCleared }
+        set { model.onCleared = newValue }
+    }
+
     init(store: EventLogStore) {
         model = HistoryModel(store: store)
     }
