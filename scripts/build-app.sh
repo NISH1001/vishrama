@@ -41,6 +41,17 @@ cat > "$APP/Contents/Info.plist" <<EOF
     <string>Vishrama reads your calendar to avoid interrupting you with break reminders during meetings.</string>
     <key>NSCalendarsUsageDescription</key>
     <string>Vishrama reads your calendar to avoid interrupting you with break reminders during meetings.</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>dev.nishparadox.vishrama</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>vishrama</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>
 EOF

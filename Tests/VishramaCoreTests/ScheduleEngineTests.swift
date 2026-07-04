@@ -520,3 +520,31 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(effects.contains(.notifyPreBreak(.short, 60)))
     }
 }
+
+@Suite struct FinishBreakEarly {
+    @Test func finishCompletesActiveBreakEarly() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let effects = engine.finishBreak(now: due.addingTimeInterval(60))
+        #expect(effects.contains(.hideOverlay))
+        #expect(effects.contains(.log(.completed, .short)))
+        #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0))))
+    }
+
+    @Test func finishAdvancesLongBreakCycle() {
+        let engine = makeEngine(longBreakEvery: 1)
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.finishBreak(now: due)
+        // Completed (not skipped): next break is the long one.
+        let next = due.addingTimeInterval(25 * 60)
+        #expect(engine.tick(now: next, context: ContextSnapshot()).contains(.showOverlay(.long)))
+    }
+
+    @Test func finishOutsideABreakDoesNothing() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        #expect(engine.finishBreak(now: t0.addingTimeInterval(60)) == [])
+    }
+}

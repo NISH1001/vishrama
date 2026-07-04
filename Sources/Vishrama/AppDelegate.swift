@@ -100,6 +100,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.apply(self.engine.postpone(now: Date()))
         }
+        overlayController.onSitWithMastishka = { [weak self] in
+            self?.openMastishkaSit()
+        }
 
         notifications.setup()
         notifications.onTakeBreak = { [weak self] in
@@ -186,6 +189,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func recomputePatterns() {
         learner.recompute(from: eventLog)
+    }
+
+    // MARK: - Mastishka handshake (specs/ecosystem-protocol.md in the mastishka repo)
+
+    /// Hand the current long break to Mastishka for a proper sit. The overlay
+    /// steps aside; the break keeps counting and completes via the callback
+    /// (or naturally at its scheduled end).
+    private func openMastishkaSit() {
+        let minutes = max(1, Int((overlayController.model.remaining / 60).rounded(.up)))
+        let sitURL = URL(string: "mastishka://sit?practice=anapana&minutes=\(minutes)&autostart=1&source=vishrama")!
+        overlayController.hide()
+        // Protocol: senders MUST check a handler exists; else fall back to the web sit.
+        if NSWorkspace.shared.urlForApplication(toOpen: sitURL) != nil {
+            NSWorkspace.shared.open(sitURL)
+            Self.log.notice("handed break to mastishka (\(minutes)min sit)")
+        } else {
+            NSWorkspace.shared.open(URL(string: "https://nishparadox.com/mastishka/")!)
+            Self.log.notice("mastishka not installed; opened web sit")
+        }
+    }
+
+    /// vishrama://sitCompleted — Mastishka finished a sit we initiated:
+    /// the break was honored, mark it completed (not skipped).
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "vishrama" && url.host == "sitCompleted" {
+            apply(engine.finishBreak(now: Date()))
+            Self.log.notice("mastishka sit completed; break credited")
+        }
     }
 
     /// "6 poms · 2 skips" under the panel countdown; hidden on an empty day.

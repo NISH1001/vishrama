@@ -189,6 +189,13 @@ public final class ScheduleEngine {
         return [.showOverlay(kind), .updateStatus(.onBreak(kind: kind, remaining: duration))]
     }
 
+    /// The break was honored elsewhere (e.g. a Mastishka sit) — complete it
+    /// early with full credit: cycle advances, backoff resets.
+    public func finishBreak(now: Date) -> [Effect] {
+        guard case .breakActive(let kind, _, let completed) = state else { return [] }
+        return [.hideOverlay] + completeBreak(of: kind, completedShortBreaks: completed, now: now) + [.log(.completed, kind)]
+    }
+
     /// User dismissed the break from the overlay. Retries after a growing
     /// backoff delay instead of a full interval — the break is still owed.
     public func skip(now: Date) -> [Effect] {

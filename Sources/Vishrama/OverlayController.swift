@@ -13,6 +13,7 @@ final class OverlayController {
     let model = BreakViewModel()
     var onSkip: (() -> Void)?
     var onPostpone: (() -> Void)?
+    var onSitWithMastishka: (() -> Void)?
 
     private var windows: [OverlayWindow] = []
     private var keyMonitor: Any?
@@ -49,7 +50,8 @@ final class OverlayController {
             window.contentView = NSHostingView(rootView: BreakView(
                 model: model,
                 onSkip: { [weak self] in self?.onSkip?() },
-                onPostpone: { [weak self] in self?.onPostpone?() }
+                onPostpone: { [weak self] in self?.onPostpone?() },
+                onSitWithMastishka: { [weak self] in self?.onSitWithMastishka?() }
             ))
             window.setFrame(screen.frame, display: true)
             window.orderFrontRegardless()

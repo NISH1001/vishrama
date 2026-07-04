@@ -16,6 +16,8 @@ struct BreakView: View {
     @ObservedObject var model: BreakViewModel
     let onSkip: () -> Void
     let onPostpone: () -> Void
+    /// Long breaks only: hand this break to Mastishka for a proper sit.
+    var onSitWithMastishka: (() -> Void)?
 
     var body: some View {
         ZStack {
@@ -55,6 +57,15 @@ struct BreakView: View {
                     .foregroundStyle(.white.opacity(0.4))
                 }
                 .padding(.top, 12)
+                if model.kind == .long, let onSitWithMastishka {
+                    Button(action: onSitWithMastishka) {
+                        Text("Sit with Mastishka 🧘")
+                            .font(.system(size: 13))
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.white.opacity(0.55))
+                    .padding(.top, 2)
+                }
             }
         }
         .ignoresSafeArea()
