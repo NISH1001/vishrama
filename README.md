@@ -156,16 +156,28 @@ Data** picks where (iCloud Drive by default; local or any custom folder work too
 │                                   every change; imported at launch (file wins),
 │                                   so a second Mac inherits your setup
 └── events/
-    └── YYYY-MM.jsonl               behavior log, one JSON object per line:
-                                    fired / completed / skipped / postponed /
-                                    suppressed / flow / natural-break / pause events,
-                                    each with hour, weekday, frontmost app, signals
+    ├── <device>.YYYY-MM.jsonl      behavior log, one JSON object per line:
+    │                               fired / completed / skipped / postponed /
+    │                               suppressed / flow / natural-break / pause events,
+    │                               each with hour, weekday, frontmost app, signals
+    └── mac-air-9f8e7d.2026-07.jsonl   (each Mac writes ONLY its own files)
 ```
 
-The event log feeds History, Stats, and pattern learning; delete it (History →
-Clear Log) and all three reset. Point both Macs at the same folder and vishrama
-behaves like one app across them. Per-machine bits (launch-at-login, data-location
-choice itself) stay in local UserDefaults by design.
+**One writer per file** (per the [ecosystem protocol](https://github.com/NISH1001/mastishka/blob/main/specs/ecosystem-protocol.md)):
+`<device>` is a stable id minted on first launch — hostname slug + 6 hex, e.g.
+`nishan-s-macbook-pro-a9dd3f` — kept in local defaults, never synced, never recomputed.
+Since no file ever has two writers, whole-file cloud sync (iCloud Drive, Google Drive)
+is conflict-free by construction.
+
+**Merging happens at read time, in one place** (`EventLogStore`): every consumer —
+History, Stats, pattern learning — receives the union of all devices' files as one
+time-sorted stream. History and Stats offer a per-device *display* filter; pattern
+learning always uses the full union (habits are per-person, not per-machine).
+Legacy un-suffixed `YYYY-MM.jsonl` files from older versions are still read, never
+written. History → Clear Log removes every device's files.
+
+Per-machine bits (launch-at-login, data-location choice, the device id itself) stay
+in local UserDefaults by design.
 
 ## Build from source
 

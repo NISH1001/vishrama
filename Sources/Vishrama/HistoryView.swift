@@ -4,6 +4,12 @@ import VishramaCore
 @MainActor
 final class HistoryModel: ObservableObject {
     @Published var events: [BreakEvent] = []
+    @Published var devices: [String] = []
+    /// nil = all devices (the default view); a slug = that device only.
+    @Published var deviceFilter: String? {
+        didSet { applyFilter() }
+    }
+    private var allTagged: [TaggedEvent] = []
     private let store: EventLogStore
     /// Invoked after a clear so the app can refresh dependents (pattern learner).
     var onCleared: (() -> Void)?
@@ -14,7 +20,16 @@ final class HistoryModel: ObservableObject {
 
     func reload() {
         let since = Date().addingTimeInterval(-7 * 86400)
-        events = ((try? store.events(since: since)) ?? []).reversed()
+        allTagged = (try? store.taggedEvents(since: since)) ?? []
+        devices = (try? store.knownDevices()) ?? []
+        applyFilter()
+    }
+
+    private func applyFilter() {
+        events = allTagged
+            .filter { deviceFilter == nil || $0.device == deviceFilter }
+            .map(\.event)
+            .reversed()
     }
 
     func clear() {
@@ -37,6 +52,17 @@ struct HistoryView: View {
         content
             .safeAreaInset(edge: .bottom) {
                 HStack {
+                    if !model.devices.isEmpty {
+                        Picker("Device", selection: $model.deviceFilter) {
+                            Text("All devices").tag(String?.none)
+                            ForEach(model.devices, id: \.self) { slug in
+                                Text(DeviceIdentity.label(for: slug)).tag(String?.some(slug))
+                            }
+                        }
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .frame(maxWidth: 180)
+                    }
                     Spacer()
                     Button("Clear Log…", role: .destructive) { confirmingClear = true }
                         .disabled(model.events.isEmpty)

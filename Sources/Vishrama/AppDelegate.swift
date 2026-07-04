@@ -150,7 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if dir.path != DataLocation.localEventsDirectory.path {
             DataLocation.copyMissingEventFiles(from: DataLocation.localEventsDirectory, to: dir)
         }
-        eventLog = EventLogStore(directory: dir)
+        eventLog = EventLogStore(directory: dir, deviceSlug: DeviceIdentity.slug)
         historyWindowController = HistoryWindowController(store: eventLog)
         statsWindowController = StatsWindowController(store: eventLog)
         statsWindowController.model.focusMinutesPerPom = { [weak self] in

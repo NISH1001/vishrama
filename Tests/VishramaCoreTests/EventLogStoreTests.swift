@@ -96,3 +96,62 @@ private func makeEvent(ts: Date, event: BreakEventKind = .fired) -> BreakEvent {
         #expect(try store.events(since: .distantPast).isEmpty)
     }
 }
+
+
+@Suite struct PerDeviceFiles {
+    private func tempDir() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("vishrama-tests-\(UUID().uuidString)")
+    }
+
+    @Test func appendsGoToDeviceSuffixedFile() throws {
+        let dir = tempDir()
+        let store = EventLogStore(directory: dir, deviceSlug: "mac-a-1a2b3c")
+        try store.append(makeEvent(ts: Date(timeIntervalSinceReferenceDate: 700_000_000)))
+        let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        #expect(files == ["mac-a-1a2b3c.2023-03.jsonl"])
+    }
+
+    @Test func readsUnionAcrossDeviceAndLegacyFilesSortedByTime() throws {
+        let dir = tempDir()
+        let base = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        let legacy = EventLogStore(directory: dir)
+        let macA = EventLogStore(directory: dir, deviceSlug: "mac-a-1a2b3c")
+        let macB = EventLogStore(directory: dir, deviceSlug: "mac-b-9f8e7d")
+        try legacy.append(makeEvent(ts: base))
+        try macB.append(makeEvent(ts: base.addingTimeInterval(120)))
+        try macA.append(makeEvent(ts: base.addingTimeInterval(60)))
+        let read = try macA.events(since: .distantPast)
+        #expect(read.map(\.ts) == [base, base.addingTimeInterval(60), base.addingTimeInterval(120)])
+    }
+
+    @Test func taggedEventsCarrySourceDevice() throws {
+        let dir = tempDir()
+        let base = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        try EventLogStore(directory: dir).append(makeEvent(ts: base))
+        try EventLogStore(directory: dir, deviceSlug: "mac-a-1a2b3c")
+            .append(makeEvent(ts: base.addingTimeInterval(60)))
+        let tagged = try EventLogStore(directory: dir).taggedEvents(since: .distantPast)
+        #expect(tagged.map(\.device) == [nil, "mac-a-1a2b3c"])
+    }
+
+    @Test func knownDevicesListsSlugsFromFiles() throws {
+        let dir = tempDir()
+        let base = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        try EventLogStore(directory: dir).append(makeEvent(ts: base))
+        try EventLogStore(directory: dir, deviceSlug: "mac-a-1a2b3c").append(makeEvent(ts: base))
+        try EventLogStore(directory: dir, deviceSlug: "mac-b-9f8e7d").append(makeEvent(ts: base))
+        let store = EventLogStore(directory: dir)
+        #expect(try store.knownDevices() == ["mac-a-1a2b3c", "mac-b-9f8e7d"])
+    }
+
+    @Test func clearRemovesAllDevicesFiles() throws {
+        let dir = tempDir()
+        let base = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        try EventLogStore(directory: dir).append(makeEvent(ts: base))
+        let mine = EventLogStore(directory: dir, deviceSlug: "mac-a-1a2b3c")
+        try mine.append(makeEvent(ts: base))
+        try mine.clear()
+        #expect(try mine.events(since: .distantPast).isEmpty)
+    }
+}

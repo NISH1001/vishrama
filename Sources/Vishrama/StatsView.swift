@@ -14,9 +14,16 @@ final class StatsModel: ObservableObject {
     @Published var today = TodaySummary()
     @Published var daily: [DailyStat] = []
     @Published var heat: [HeatCell] = []
+    @Published var devices: [String] = []
+    /// nil = all devices (default); a slug = that device only. Display lens
+    /// only — pattern learning always consumes the unfiltered union.
+    @Published var deviceFilter: String? {
+        didSet { recompute() }
+    }
     /// For the ~focus estimate (completed poms × configured interval).
     var focusMinutesPerPom: () -> Int = { 25 }
 
+    private var allTagged: [TaggedEvent] = []
     private let store: EventLogStore
 
     init(store: EventLogStore) {
@@ -25,7 +32,16 @@ final class StatsModel: ObservableObject {
 
     func reload() {
         let now = Date()
-        let events = (try? store.events(since: now.addingTimeInterval(-60 * 86400))) ?? []
+        allTagged = (try? store.taggedEvents(since: now.addingTimeInterval(-60 * 86400))) ?? []
+        devices = (try? store.knownDevices()) ?? []
+        recompute()
+    }
+
+    private func recompute() {
+        let now = Date()
+        let events = allTagged
+            .filter { deviceFilter == nil || $0.device == deviceFilter }
+            .map(\.event)
         today = Stats.today(events: events, now: now)
         daily = Stats.daily(events: events, days: 14, now: now)
         heat = Stats.heatmap(events: events)
@@ -49,12 +65,26 @@ struct StatsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            if !model.devices.isEmpty {
+                HStack {
+                    Spacer()
+                    Picker("Device", selection: $model.deviceFilter) {
+                        Text("All devices").tag(String?.none)
+                        ForEach(model.devices, id: \.self) { slug in
+                            Text(DeviceIdentity.label(for: slug)).tag(String?.some(slug))
+                        }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(maxWidth: 200)
+                }
+            }
             tiles
             barSection
             heatSection
         }
         .padding(18)
-        .frame(width: 560, height: 540)
+        .frame(width: 560, height: 570)
         .environment(\.colorScheme, .dark)
         .background(Color(red: 0.086, green: 0.10, blue: 0.13))
     }
