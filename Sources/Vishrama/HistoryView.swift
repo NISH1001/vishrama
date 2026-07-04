@@ -32,14 +32,20 @@ final class HistoryModel: ObservableObject {
             .reversed()
     }
 
+    /// Clears what the active filter shows: everything, or one device's files.
     func clear() {
         do {
-            try store.clear()
+            try store.clear(device: deviceFilter)
         } catch {
             AppDelegate.log.error("clearing event log failed: \(error)")
         }
+        deviceFilter = nil
         reload()
         onCleared?()
+    }
+
+    var clearScopeLabel: String {
+        deviceFilter.map { DeviceIdentity.label(for: $0) } ?? "all devices"
     }
 }
 
@@ -71,11 +77,13 @@ struct HistoryView: View {
                 .padding(.vertical, 8)
                 .background(.bar)
             }
-            .confirmationDialog("Clear all break history?", isPresented: $confirmingClear) {
-                Button("Clear Everything", role: .destructive) { model.clear() }
+            .confirmationDialog("Clear break history from \(model.clearScopeLabel)?", isPresented: $confirmingClear) {
+                Button("Clear \(model.clearScopeLabel)", role: .destructive) { model.clear() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This permanently deletes the entire event log — the timeline AND everything pattern learning has observed. Settings are not affected. This cannot be undone.")
+                Text(model.deviceFilter == nil
+                     ? "Permanently deletes the entire event log — the timeline AND everything pattern learning has observed. Settings are not affected. This cannot be undone."
+                     : "Permanently deletes this device's events only; other devices' history and settings are untouched. Pattern learning recomputes from what remains. This cannot be undone.")
             }
     }
 

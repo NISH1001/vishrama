@@ -155,3 +155,34 @@ private func makeEvent(ts: Date, event: BreakEventKind = .fired) -> BreakEvent {
         #expect(try mine.events(since: .distantPast).isEmpty)
     }
 }
+
+@Suite struct ScopedClearing {
+    private func tempDir() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("vishrama-tests-\(UUID().uuidString)")
+    }
+
+    @Test func clearForDeviceRemovesOnlyThatDevicesFiles() throws {
+        let dir = tempDir()
+        let base = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        try EventLogStore(directory: dir).append(makeEvent(ts: base))                       // legacy
+        try EventLogStore(directory: dir, deviceSlug: "mac-a-1a2b3c").append(makeEvent(ts: base))
+        try EventLogStore(directory: dir, deviceSlug: "mac-b-9f8e7d").append(makeEvent(ts: base))
+        let store = EventLogStore(directory: dir)
+        try store.clear(device: "mac-a-1a2b3c")
+        let remaining = try store.taggedEvents(since: .distantPast).map(\.device)
+        #expect(remaining.contains(nil))                 // legacy survives
+        #expect(remaining.contains("mac-b-9f8e7d"))      // other device survives
+        #expect(!remaining.contains("mac-a-1a2b3c"))     // target gone
+    }
+
+    @Test func clearWithNilDeviceRemovesEverything() throws {
+        let dir = tempDir()
+        let base = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        try EventLogStore(directory: dir).append(makeEvent(ts: base))
+        try EventLogStore(directory: dir, deviceSlug: "mac-a-1a2b3c").append(makeEvent(ts: base))
+        let store = EventLogStore(directory: dir)
+        try store.clear(device: nil)
+        #expect(try store.events(since: .distantPast).isEmpty)
+    }
+}

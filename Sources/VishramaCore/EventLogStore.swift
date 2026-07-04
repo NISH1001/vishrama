@@ -58,12 +58,14 @@ public final class EventLogStore {
         }
     }
 
-    /// Erase the entire log: remove every month file, every device's.
-    /// The directory (and non-log files like settings.json) is left alone.
-    public func clear() throws {
+    /// Erase log files. `device: nil` removes everything (all devices +
+    /// legacy); a slug removes only that device's files. The directory (and
+    /// non-log files like settings.json) is left alone.
+    public func clear(device: String? = nil) throws {
         guard FileManager.default.fileExists(atPath: directory.path) else { return }
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "jsonl" }
+            .filter { device == nil || Self.deviceSlug(fromFileName: $0.lastPathComponent) == device }
         for file in files {
             try FileManager.default.removeItem(at: file)
         }
