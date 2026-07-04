@@ -236,6 +236,37 @@ struct SettingsView: View {
             }
 
             Section {
+                HStack(spacing: 10) {
+                    Group {
+                        if let icon = Self.mastishkaIcon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                        } else {
+                            Text("🧘")
+                                .font(.system(size: 24))
+                                .frame(width: 32, height: 32)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Mastishka — मस्तिष्क")
+                            .font(.system(size: 13, weight: .medium))
+                        Text(Self.mastishkaInstalled
+                             ? "detected on this Mac ✓"
+                             : "not installed — breaks will open the web sit")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if !Self.mastishkaInstalled {
+                        Button("Get Mastishka") {
+                            NSWorkspace.shared.open(URL(string: "https://nishparadox.com/mastishka/")!)
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                .padding(.vertical, 2)
+
                 Toggle("Offer \"Sit with Mastishka\" on standup breaks", isOn: $store.mastishkaEnabled)
                 if store.mastishkaEnabled {
                     Picker("Practice", selection: $store.mastishkaPractice) {
@@ -244,16 +275,11 @@ struct SettingsView: View {
                         Text("Metta").tag("metta")
                         Text("Meditation").tag("meditation")
                     }
-                    LabeledContent("Mastishka on this Mac") {
-                        Text(Self.mastishkaInstalled ? "detected ✓" : "not installed — will open the web sit")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                 }
             } header: {
                 Text("Ecosystem")
             } footer: {
-                Text("Hands a standup break to Mastishka for a proper sit (the sit auto-starts, sized to the break). When the sit ends, the break is credited as completed. No accounts, no pairing — just the two apps tipping hats.")
+                Text("vishrama reminds you to rest — Mastishka is where you practice. Hand a standup break over and a sit auto-starts, sized to the break; when it ends, the break is credited as completed. No accounts, no pairing, your data stays in your own files — just two apps tipping hats. 🌻")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -271,6 +297,14 @@ struct SettingsView: View {
     static var mastishkaInstalled: Bool {
         guard let url = URL(string: "mastishka://sit") else { return false }
         return NSWorkspace.shared.urlForApplication(toOpen: url) != nil
+    }
+
+    /// The real app icon when mastishka-mac is installed; nil → emoji fallback.
+    static var mastishkaIcon: NSImage? {
+        guard let url = URL(string: "mastishka://sit"),
+              let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
+        else { return nil }
+        return NSWorkspace.shared.icon(forFile: appURL.path)
     }
 
     static var versionString: String {
