@@ -5,6 +5,10 @@ import VishramaCore
 @MainActor
 final class StatusModel: ObservableObject {
     @Published var status: StatusInfo = .working(remaining: 0)
+    /// "6 poms · 2 skips" — nil while the day is empty (line hides entirely).
+    @Published var todayLine: String?
+    /// Panel size multiplier from Settings (compact 1.0 … large 1.4).
+    @Published var panelScale: Double = 1.2
 
     var paused: Bool {
         if case .manualPaused = status { return true }
@@ -43,51 +47,63 @@ struct PopoverView: View {
     let onBreakNow: () -> Void
     let onReset: () -> Void
     let onHistory: () -> Void
+    let onStats: () -> Void
     let onSettings: () -> Void
 
+    /// All key dimensions multiply by the settings-chosen scale.
+    private var s: Double { model.panelScale }
+
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 12 * s) {
             Button(action: onTogglePause) {
                 ZStack {
                     Circle()
                         .fill(.quaternary.opacity(0.6))
-                        .frame(width: 74, height: 74)
+                        .frame(width: 74 * s, height: 74 * s)
                     Image(systemName: model.paused ? "play.fill" : "pause.fill")
-                        .font(.system(size: 26, weight: .medium))
+                        .font(.system(size: 26 * s, weight: .medium))
                         .foregroundStyle(.primary.opacity(0.75))
                 }
             }
             .buttonStyle(.plain)
             .help(model.paused ? "Resume" : "Pause")
 
-            VStack(spacing: 2) {
+            VStack(spacing: 2 * s) {
                 Text(model.timeText)
-                    .font(.system(size: 26, weight: .light).monospacedDigit())
+                    .font(.system(size: 26 * s, weight: .light).monospacedDigit())
                 Text(model.subtitle)
-                    .font(.caption)
+                    .font(.system(size: 10 * s))
                     .foregroundStyle(.secondary)
+                if let todayLine = model.todayLine {
+                    Text(todayLine)
+                        .font(.system(size: 9 * s))
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 2)
+                }
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: 10 * s) {
                 Button("Reset", action: onReset)
                 Button("Break Now", action: onBreakNow)
             }
-            .controlSize(.small)
+            .controlSize(s >= 1.2 ? .regular : .small)
 
             Divider()
 
             HStack {
                 Button("History", action: onHistory)
                 Spacer()
+                Button("Stats", action: onStats)
+                Spacer()
                 Button("Settings", action: onSettings)
                 Spacer()
                 Button("Quit") { NSApp.terminate(nil) }
             }
             .buttonStyle(.link)
-            .font(.caption)
+            .font(.system(size: 10 * s))
         }
-        .padding(14)
-        .frame(width: 210)
+        .padding(14 * s)
+        .frame(width: 240 * s)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(LinearGradient(

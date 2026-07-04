@@ -30,6 +30,23 @@ final class SettingsStore: ObservableObject {
     @Published var preBreakWarnSec: Int {
         didSet { defaults.set(preBreakWarnSec, forKey: "preBreakWarnSec") }
     }
+
+    enum PanelSize: String, CaseIterable {
+        case compact, comfortable, large
+
+        var scale: Double {
+            switch self {
+            case .compact: 1.0
+            case .comfortable: 1.2
+            case .large: 1.4
+            }
+        }
+    }
+
+    /// Size of the menu bar panel.
+    @Published var panelSize: PanelSize {
+        didSet { defaults.set(panelSize.rawValue, forKey: "panelSize") }
+    }
     @Published var shortPrompts: [String] {
         didSet { defaults.set(shortPrompts, forKey: "shortPrompts") }
     }
@@ -124,6 +141,7 @@ final class SettingsStore: ObservableObject {
         idlePauseMin = defaults.object(forKey: "idlePauseMin") as? Int ?? 2
         postponeMin = defaults.object(forKey: "postponeMin") as? Int ?? 5
         preBreakWarnSec = defaults.object(forKey: "preBreakWarnSec") as? Int ?? 60
+        panelSize = defaults.string(forKey: "panelSize").flatMap(PanelSize.init) ?? .comfortable
         shortPrompts = defaults.stringArray(forKey: "shortPrompts") ?? Self.defaultShortPrompts
         longPrompts = defaults.stringArray(forKey: "longPrompts") ?? Self.defaultLongPrompts
         launchAtLogin = SMAppService.mainApp.status == .enabled

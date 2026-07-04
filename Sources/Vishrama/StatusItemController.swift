@@ -21,6 +21,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             onBreakNow: { [weak self] in self?.closePanel(); self?.onBreakNow?() },
             onReset: { [weak self] in self?.onReset?() },
             onHistory: { [weak self] in self?.closePanel(); self?.onHistory?() },
+            onStats: { [weak self] in self?.closePanel(); self?.onStats?() },
             onSettings: { [weak self] in self?.closePanel(); self?.onSettings?() }
         ))
         let panel = NSPanel(
@@ -46,6 +47,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var onReset: (() -> Void)?
     var onSettings: (() -> Void)?
     var onHistory: (() -> Void)?
+    var onStats: (() -> Void)?
     /// Fired on any click of the status item — lets the app tuck auxiliary
     /// windows (Settings/History) away, keeping the menu-bar feel transient.
     var onStatusInteraction: (() -> Void)?
@@ -225,6 +227,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         history.target = self
         menu.addItem(history)
 
+        let stats = NSMenuItem(title: "Stats", action: #selector(statsClicked), keyEquivalent: "s")
+        stats.target = self
+        menu.addItem(stats)
+
         let settings = NSMenuItem(title: "Settings…", action: #selector(settingsClicked), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
@@ -256,5 +262,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func historyClicked() {
         onHistory?()
+    }
+
+    @objc private func statsClicked() {
+        onStats?()
     }
 }

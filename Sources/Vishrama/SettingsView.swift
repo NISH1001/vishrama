@@ -186,6 +186,11 @@ struct SettingsView: View {
         Form {
             Section {
                 Toggle("Launch Vishrama at login", isOn: $store.launchAtLogin)
+                Picker("Panel size", selection: $store.panelSize) {
+                    Text("Compact").tag(SettingsStore.PanelSize.compact)
+                    Text("Comfortable").tag(SettingsStore.PanelSize.comfortable)
+                    Text("Large").tag(SettingsStore.PanelSize.large)
+                }
             }
 
             Section {

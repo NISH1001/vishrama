@@ -1,0 +1,184 @@
+import Charts
+import SwiftUI
+import VishramaCore
+
+/// Chart palette — validated for the dark surface (lightness band, chroma
+/// floor, CVD separation, contrast) with scripts/validate_palette.js.
+private enum ChartColor {
+    static let taken = Color(red: 0xBE / 255.0, green: 0x85 / 255.0, blue: 0x1F / 255.0)
+    static let skipped = Color(red: 0x62 / 255.0, green: 0x72 / 255.0, blue: 0xC4 / 255.0)
+}
+
+@MainActor
+final class StatsModel: ObservableObject {
+    @Published var today = TodaySummary()
+    @Published var daily: [DailyStat] = []
+    @Published var heat: [HeatCell] = []
+    /// For the ~focus estimate (completed poms × configured interval).
+    var focusMinutesPerPom: () -> Int = { 25 }
+
+    private let store: EventLogStore
+
+    init(store: EventLogStore) {
+        self.store = store
+    }
+
+    func reload() {
+        let now = Date()
+        let events = (try? store.events(since: now.addingTimeInterval(-60 * 86400))) ?? []
+        today = Stats.today(events: events, now: now)
+        daily = Stats.daily(events: events, days: 14, now: now)
+        heat = Stats.heatmap(events: events)
+    }
+
+    var focusEstimate: String {
+        let minutes = today.poms * focusMinutesPerPom()
+        guard minutes > 0 else { return "—" }
+        return minutes < 60 ? "~\(minutes)m" : String(format: "~%.1fh", Double(minutes) / 60)
+    }
+}
+
+struct StatsView: View {
+    @ObservedObject var model: StatsModel
+    @State private var heatMetric = HeatMetric.completed
+
+    enum HeatMetric: String, CaseIterable {
+        case completed = "Breaks taken"
+        case skips = "Skips"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            tiles
+            barSection
+            heatSection
+        }
+        .padding(18)
+        .frame(width: 560, height: 540)
+        .environment(\.colorScheme, .dark)
+        .background(Color(red: 0.086, green: 0.10, blue: 0.13))
+    }
+
+    // MARK: Today tiles
+
+    private var tiles: some View {
+        HStack(spacing: 10) {
+            tile(value: "\(model.today.poms)", label: "poms today")
+            tile(value: "\(model.today.standups)", label: "standups")
+            tile(value: "\(model.today.skipped)", label: "skipped")
+            tile(value: model.focusEstimate, label: "focus (est.)")
+        }
+    }
+
+    private func tile(value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 24, weight: .light).monospacedDigit())
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.05)))
+    }
+
+    // MARK: 14-day bars
+
+    private var barSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Last 14 days")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Chart(model.daily) { day in
+                BarMark(
+                    x: .value("Day", day.day, unit: .day),
+                    y: .value("Breaks", day.completed)
+                )
+                .foregroundStyle(by: .value("Kind", "Taken"))
+                .cornerRadius(2)
+                BarMark(
+                    x: .value("Day", day.day, unit: .day),
+                    y: .value("Breaks", day.skipped)
+                )
+                .foregroundStyle(by: .value("Kind", "Skipped"))
+                .cornerRadius(2)
+            }
+            .chartForegroundStyleScale(["Taken": ChartColor.taken, "Skipped": ChartColor.skipped])
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day, count: 2)) { _ in
+                    AxisValueLabel(format: .dateTime.day(), centered: true)
+                        .font(.caption2)
+                }
+            }
+            .chartYAxis {
+                AxisMarks { _ in
+                    AxisGridLine().foregroundStyle(.white.opacity(0.06))
+                    AxisValueLabel().font(.caption2)
+                }
+            }
+            .frame(height: 140)
+        }
+    }
+
+    // MARK: Hour × weekday heatmap
+
+    private static let weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    private var heatSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Your rhythm (last 60 days)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Picker("", selection: $heatMetric) {
+                    ForEach(HeatMetric.allCases, id: \.self) { Text($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                .controlSize(.small)
+                .frame(width: 200)
+            }
+            Chart(model.heat) { cell in
+                RectangleMark(
+                    x: .value("Hour", String(cell.hour)),
+                    y: .value("Day", Self.weekdayLabel(dow: cell.dow)),
+                    width: .ratio(0.9),
+                    height: .fixed(16)
+                )
+                .foregroundStyle(cellColor(for: cell))
+                .cornerRadius(2)
+            }
+            .chartYScale(domain: Self.weekdayLabels)
+            .chartXScale(domain: (0...23).map(String.init))
+            .chartXAxis {
+                AxisMarks(values: ["0", "6", "12", "18"]) { value in
+                    AxisValueLabel {
+                        if let hour = value.as(String.self) {
+                            Text("\(hour):00").font(.caption2)
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks { _ in AxisValueLabel().font(.caption2) }
+            }
+            .frame(height: 160)
+        }
+    }
+
+    private static func weekdayLabel(dow: Int) -> String {
+        // Calendar dow: 1 = Sunday … 7 = Saturday.
+        ["", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow]
+    }
+
+    /// Single-hue sequential ramp: intensity scales with the chosen metric.
+    private func cellColor(for cell: HeatCell) -> Color {
+        let value = heatMetric == .completed ? cell.completed : cell.skipped
+        let peak = model.heat.map { heatMetric == .completed ? $0.completed : $0.skipped }.max() ?? 1
+        guard value > 0, peak > 0 else { return Color.white.opacity(0.04) }
+        let intensity = 0.25 + 0.75 * Double(value) / Double(peak)
+        let base = heatMetric == .completed ? ChartColor.taken : ChartColor.skipped
+        return base.opacity(intensity)
+    }
+}

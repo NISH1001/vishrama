@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settings: SettingsStore!
     private var settingsWindowController: SettingsWindowController!
     private var historyWindowController: HistoryWindowController!
+    private var statsWindowController: StatsWindowController!
     private var settingsObserver: AnyCancellable?
     let contextMonitor = ContextMonitor()
     private let notifications = NotificationManager()
@@ -47,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     guard let self else { return }
                     self.engine = ScheduleEngine(config: self.settings.configuration, startAt: Date())
                     self.rebuildSignalProviders()
+                    self.statusItemController.statusModel.panelScale = self.settings.panelSize.scale
                     if self.eventLog.directory != self.currentEventsDirectory {
                         self.remakeEventLog()
                     }
@@ -74,11 +76,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItemController.onHistory = { [weak self] in
             self?.historyWindowController.show()
         }
+        statusItemController.onStats = { [weak self] in
+            self?.statsWindowController.show()
+        }
         // Any menu-bar interaction tucks the auxiliary windows away.
         statusItemController.onStatusInteraction = { [weak self] in
             self?.settingsWindowController.close()
             self?.historyWindowController.close()
+            self?.statsWindowController.close()
         }
+        refreshTodayLine()
+        statusItemController.statusModel.panelScale = settings.panelSize.scale
 
         overlayController = OverlayController()
         overlayController.promptsProvider = { [weak self] kind in
@@ -113,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch open {
                 case "settings": self.settingsWindowController.show()
                 case "history": self.historyWindowController.show()
+                case "stats": self.statsWindowController.show()
                 case "popover": self.statusItemController.debugShowPopover()
                 case "break": self.apply(self.engine.breakNow(now: Date()))
                 default: break
@@ -141,6 +150,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         eventLog = EventLogStore(directory: dir)
         historyWindowController = HistoryWindowController(store: eventLog)
+        statsWindowController = StatsWindowController(store: eventLog)
+        statsWindowController.model.focusMinutesPerPom = { [weak self] in
+            self?.settings.shortIntervalMin ?? 25
+        }
         // Clearing the log also resets what pattern learning knows.
         historyWindowController.onCleared = { [weak self] in
             guard let self else { return }
@@ -173,6 +186,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func recomputePatterns() {
         learner.recompute(from: eventLog)
+    }
+
+    /// "6 poms · 2 skips" under the panel countdown; hidden on an empty day.
+    private func refreshTodayLine() {
+        let now = Date()
+        let events = (try? eventLog.events(since: Calendar.current.startOfDay(for: now))) ?? []
+        let today = Stats.today(events: events, now: now)
+        guard !today.isEmpty else {
+            statusItemController.statusModel.todayLine = nil
+            return
+        }
+        var parts: [String] = []
+        if today.poms > 0 { parts.append("\(today.poms) pom\(today.poms == 1 ? "" : "s")") }
+        if today.standups > 0 { parts.append("\(today.standups) standup\(today.standups == 1 ? "" : "s")") }
+        if today.skipped > 0 { parts.append("\(today.skipped) skip\(today.skipped == 1 ? "" : "s")") }
+        if today.naturalBreaks > 0 { parts.append("\(today.naturalBreaks) natural") }
+        statusItemController.statusModel.todayLine = parts.joined(separator: " · ")
     }
 
     @objc private func timerFired() {
@@ -231,6 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 } catch {
                     Self.log.error("event log append failed: \(error)")
                 }
+                refreshTodayLine()
             }
         }
     }
