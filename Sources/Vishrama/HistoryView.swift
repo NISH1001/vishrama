@@ -3,7 +3,7 @@ import VishramaCore
 
 @MainActor
 final class HistoryModel: ObservableObject {
-    @Published var events: [BreakEvent] = []
+    @Published var rows: [TaggedEvent] = []
     @Published var devices: [String] = []
     /// nil = all devices (the default view); a slug = that device only.
     @Published var deviceFilter: String? {
@@ -26,9 +26,8 @@ final class HistoryModel: ObservableObject {
     }
 
     private func applyFilter() {
-        events = allTagged
+        rows = allTagged
             .filter { deviceFilter == nil || $0.device == deviceFilter }
-            .map(\.event)
             .reversed()
     }
 
@@ -71,7 +70,7 @@ struct HistoryView: View {
                     }
                     Spacer()
                     Button("Clear Log…", role: .destructive) { confirmingClear = true }
-                        .disabled(model.events.isEmpty)
+                        .disabled(model.rows.isEmpty)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -89,7 +88,7 @@ struct HistoryView: View {
 
     private var content: some View {
         Group {
-            if model.events.isEmpty {
+            if model.rows.isEmpty {
                 VStack(spacing: 8) {
                     Text("🌻")
                         .font(.system(size: 40))
@@ -101,8 +100,8 @@ struct HistoryView: View {
                 List {
                     ForEach(groupedByDay, id: \.day) { group in
                         Section(group.day) {
-                            ForEach(Array(group.events.enumerated()), id: \.offset) { _, event in
-                                row(event)
+                            ForEach(Array(group.rows.enumerated()), id: \.offset) { _, tagged in
+                                row(tagged)
                             }
                         }
                     }
@@ -113,23 +112,24 @@ struct HistoryView: View {
         .frame(width: 420, height: 480)
     }
 
-    private var groupedByDay: [(day: String, events: [BreakEvent])] {
+    private var groupedByDay: [(day: String, rows: [TaggedEvent])] {
         let formatter = DateFormatter()
         formatter.dateStyle = .full
         formatter.timeStyle = .none
         formatter.doesRelativeDateFormatting = true
         var seen: [String] = []
-        var groups: [String: [BreakEvent]] = [:]
-        for event in model.events {
-            let day = formatter.string(from: event.ts)
+        var groups: [String: [TaggedEvent]] = [:]
+        for tagged in model.rows {
+            let day = formatter.string(from: tagged.event.ts)
             if groups[day] == nil { seen.append(day) }
-            groups[day, default: []].append(event)
+            groups[day, default: []].append(tagged)
         }
-        return seen.map { (day: $0, events: groups[$0] ?? []) }
+        return seen.map { (day: $0, rows: groups[$0] ?? []) }
     }
 
-    private func row(_ event: BreakEvent) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+    private func row(_ tagged: TaggedEvent) -> some View {
+        let event = tagged.event
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(Self.icon(for: event))
             VStack(alignment: .leading, spacing: 1) {
                 Text(Self.title(for: event))
@@ -140,9 +140,17 @@ struct HistoryView: View {
                 }
             }
             Spacer()
-            Text(event.ts, style: .time)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(event.ts, style: .time)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                // Which device, but only in the merged view (redundant otherwise).
+                if model.deviceFilter == nil {
+                    Text("(\(tagged.device ?? "earlier"))")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
         .padding(.vertical, 2)
     }
