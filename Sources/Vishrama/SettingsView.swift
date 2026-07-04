@@ -253,8 +253,11 @@ struct SettingsView: View {
                         }
                     }
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Mastishka — मस्तिष्क")
+                        Link("Mastishka — मस्तिष्क",
+                             destination: URL(string: "https://github.com/NISH1001/mastishka")!)
                             .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .underline(pattern: .dot, color: .secondary)
                         Text(Self.mastishkaInstalled
                              ? "detected on this Mac ✓"
                              : "not installed — breaks will open the web sit")
