@@ -84,6 +84,11 @@ behavior** (skips, flow sessions) instead of nagging blindly.
 - **History** — a humanized timeline of your last week: breaks taken, skipped, held back
   by meetings, flow sessions, pauses. A confirmed **Clear Log** wipes the record (and
   everything pattern learning has observed) whenever you want a fresh start.
+- **The Mastishka handshake** — standup breaks offer *Sit with Mastishka 🧘*: one click
+  hands the break to [mastishka](https://github.com/NISH1001/mastishka) for a proper sit
+  (auto-started, sized to the break, practice of your choice); when the sit is saved,
+  vishrama credits the break as completed. URL schemes only — no accounts, no pairing.
+  vishrama reminds you to rest; mastishka is where you practice.
 - **Yours, everywhere** — data lives in `iCloud Drive ▸ Vishrama` by default
   (`settings.json` + `events/*.jsonl`, both human-readable). Both Macs pointed at the
   same folder = one app across machines. Local-only or any custom folder also supported.
