@@ -48,8 +48,9 @@ behavior** (skips, flow sessions) instead of nagging blindly.
 ## Features
 
 - **Menu-bar native** — `🌻 24:32` in the top bar. The sunflower itself is the pause
-  button (it wilts to 🥀 while paused); click the timer for a popover panel with the
-  countdown, pause/play, Reset, Break Now, History, and Settings. No Dock icon.
+  button (it wilts to 🥀 while paused); click the timer for a panel with the countdown,
+  pause/play, Reset, Break Now, History, Stats, and Settings. Panel size is adjustable
+  (Compact / Comfortable / Large). No Dock icon.
 - **Classic schedule** — an eye break every N minutes (look away, drink water, relax your
   neck); a standup break (walk, Anapana) after every K eye breaks. Everything configurable,
   including the reminder messages.
@@ -74,6 +75,12 @@ behavior** (skips, flow sessions) instead of nagging blindly.
     there — only after 8+ observations at a ≥70% skip rate, and every learned rule is
     visible in **Settings → Adaptivity** with a per-rule off switch. Nothing acts invisibly.
     Full algorithm write-up: [docs/adaptivity.md](docs/adaptivity.md).
+- **Stats** — how your day actually went: today tiles (poms · standups · skipped ·
+  estimated focus time), a 14-day taken-vs-skipped bar chart, and an hour × weekday
+  **rhythm heatmap** of the last 60 days (toggle between breaks taken and skips) —
+  literally the pattern learner's worldview made visible. The panel also shows a tiny
+  "6 poms · 2 skips" pulse under the countdown (hidden while the day is empty).
+  Chart colors are validated for contrast and colorblind separation.
 - **History** — a humanized timeline of your last week: breaks taken, skipped, held back
   by meetings, flow sessions, pauses. A confirmed **Clear Log** wipes the record (and
   everything pattern learning has observed) whenever you want a fresh start.
@@ -162,9 +169,8 @@ so every scheduling behavior is testable with an injected clock (46 tests and co
 
 ## Roadmap
 
-Daily stats in the panel ("6 poms · 4 breaks taken · 3h 40m focused"), meeting-gap break
-suggestions ("meeting in 10 min — good time for your break"), Anapana breathing pacer on
-the break overlay.
+Anapana breathing pacer on the break overlay, meeting-gap break suggestions
+("meeting in 10 min — good time for your break").
 
 ## License
 
