@@ -32,7 +32,7 @@ struct SettingsView: View {
                     Text("Strongly (×2)").tag(SettingsStore.AdaptivityStrength.strong)
                 }
             } footer: {
-                Text("Vishrama mines your last 60 days of break history for contexts where you habitually skip (e.g. weekday mornings in the IDE) and quietly spaces breaks out there. It only acts on a pattern after \(PatternModel.minSamples)+ observations with a ≥\(Int(PatternModel.highSkipRate * 100))% skip rate.")
+                Text("Learns where you habitually skip and spaces breaks out there.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
