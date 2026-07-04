@@ -283,7 +283,7 @@ struct SettingsView: View {
             } header: {
                 Text("Ecosystem")
             } footer: {
-                Text("vishrama reminds you to rest — Mastishka is where you practice. Hand a standup break over and a sit auto-starts, sized to the break; when it ends, the break is credited as completed. No accounts, no pairing, your data stays in your own files — just two apps tipping hats. 🌻")
+                Text("Vishrama hands the meditation session off to Mastishka — when the sit ends, the break is credited as completed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
