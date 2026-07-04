@@ -26,6 +26,10 @@ final class SettingsStore: ObservableObject {
     @Published var postponeMin: Int {
         didSet { defaults.set(postponeMin, forKey: "postponeMin") }
     }
+    /// Heads-up notification this many seconds before a break (0 = off).
+    @Published var preBreakWarnSec: Int {
+        didSet { defaults.set(preBreakWarnSec, forKey: "preBreakWarnSec") }
+    }
     @Published var shortPrompts: [String] {
         didSet { defaults.set(shortPrompts, forKey: "shortPrompts") }
     }
@@ -119,6 +123,7 @@ final class SettingsStore: ObservableObject {
         longBreakEvery = defaults.object(forKey: "longBreakEvery") as? Int ?? 2
         idlePauseMin = defaults.object(forKey: "idlePauseMin") as? Int ?? 2
         postponeMin = defaults.object(forKey: "postponeMin") as? Int ?? 5
+        preBreakWarnSec = defaults.object(forKey: "preBreakWarnSec") as? Int ?? 60
         shortPrompts = defaults.stringArray(forKey: "shortPrompts") ?? Self.defaultShortPrompts
         longPrompts = defaults.stringArray(forKey: "longPrompts") ?? Self.defaultLongPrompts
         launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -145,6 +150,8 @@ final class SettingsStore: ObservableObject {
         var longBreakEvery: Int
         var idlePauseMin: Int
         var postponeMin: Int
+        // Optional so settings.json written by older versions still imports.
+        var preBreakWarnSec: Int?
         var shortPrompts: [String]
         var longPrompts: [String]
         var signalCameraMic: Bool
@@ -159,6 +166,7 @@ final class SettingsStore: ObservableObject {
             shortIntervalMin: shortIntervalMin, shortDurationMin: shortDurationMin,
             longDurationMin: longDurationMin, longBreakEvery: longBreakEvery,
             idlePauseMin: idlePauseMin, postponeMin: postponeMin,
+            preBreakWarnSec: preBreakWarnSec,
             shortPrompts: shortPrompts, longPrompts: longPrompts,
             signalCameraMic: signalCameraMic, signalScreenShare: signalScreenShare,
             signalCalendar: signalCalendar, presentingApps: presentingApps
@@ -186,6 +194,7 @@ final class SettingsStore: ObservableObject {
         longBreakEvery = snapshot.longBreakEvery
         idlePauseMin = snapshot.idlePauseMin
         postponeMin = snapshot.postponeMin
+        if let warn = snapshot.preBreakWarnSec { preBreakWarnSec = warn }
         shortPrompts = snapshot.shortPrompts
         longPrompts = snapshot.longPrompts
         signalCameraMic = snapshot.signalCameraMic
@@ -204,7 +213,8 @@ final class SettingsStore: ObservableObject {
                 longDuration: TimeInterval(longDurationMin),
                 longBreakEvery: longBreakEvery,
                 idlePauseThreshold: 20,
-                postponeDelay: TimeInterval(postponeMin)
+                postponeDelay: TimeInterval(postponeMin),
+                preBreakWarning: preBreakWarnSec > 0 ? 5 : 0
             )
         }
         return BreakConfiguration(
@@ -213,7 +223,8 @@ final class SettingsStore: ObservableObject {
             longDuration: TimeInterval(longDurationMin * 60),
             longBreakEvery: longBreakEvery,
             idlePauseThreshold: TimeInterval(idlePauseMin * 60),
-            postponeDelay: TimeInterval(postponeMin * 60)
+            postponeDelay: TimeInterval(postponeMin * 60),
+            preBreakWarning: TimeInterval(preBreakWarnSec)
         )
     }
 

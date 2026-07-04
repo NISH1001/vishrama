@@ -27,6 +27,8 @@ public struct BreakConfiguration: Sendable, Equatable {
     public var flowThreshold: Double
     /// How long flow mode quiets overlays once detected.
     public var flowQuietDuration: TimeInterval
+    /// Gentle heads-up this long before a break fires (0 = off).
+    public var preBreakWarning: TimeInterval
 
     public init(
         shortInterval: TimeInterval = 25 * 60,
@@ -40,7 +42,8 @@ public struct BreakConfiguration: Sendable, Equatable {
         backoffScale: Double = 1.0,
         flowWindow: TimeInterval = 90 * 60,
         flowThreshold: Double = 3.0,
-        flowQuietDuration: TimeInterval = 45 * 60
+        flowQuietDuration: TimeInterval = 45 * 60,
+        preBreakWarning: TimeInterval = 60
     ) {
         self.shortInterval = shortInterval
         self.shortDuration = shortDuration
@@ -54,6 +57,7 @@ public struct BreakConfiguration: Sendable, Equatable {
         self.flowWindow = flowWindow
         self.flowThreshold = flowThreshold
         self.flowQuietDuration = flowQuietDuration
+        self.preBreakWarning = preBreakWarning
     }
 
     /// Delay before retrying after the Nth consecutive skip (1-based).

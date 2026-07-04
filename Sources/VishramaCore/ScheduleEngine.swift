@@ -16,6 +16,8 @@ public final class ScheduleEngine {
     private var skipWeights: [(at: Date, weight: Double)] = []
     /// While set (and in the future), due breaks notify instead of taking the screen.
     private var quietUntil: Date?
+    /// The breakDue we already sent a heads-up for (one warning per break).
+    private var preBreakWarnedFor: Date?
 
     public init(config: BreakConfiguration = BreakConfiguration(), startAt now: Date) {
         self.config = config
@@ -54,6 +56,20 @@ public final class ScheduleEngine {
                 let duration = config.duration(of: kind)
                 state = .breakActive(kind: kind, endsAt: now.addingTimeInterval(duration), completedShortBreaks: completed)
                 return [.showOverlay(kind), .updateStatus(.onBreak(kind: kind, remaining: duration)), .log(.fired, kind)]
+            }
+            // Gentle heads-up shortly before the break — skipped in meetings
+            // (the break would be suppressed) and in flow quiet (it notifies anyway).
+            if config.preBreakWarning > 0,
+               now >= breakDue.addingTimeInterval(-config.preBreakWarning),
+               context.activeSignals.isEmpty,
+               preBreakWarnedFor != breakDue,
+               quietUntil == nil || now >= quietUntil! {
+                preBreakWarnedFor = breakDue
+                let kind = pendingBreakKind(completedShortBreaks: completed)
+                return [
+                    .updateStatus(.working(remaining: breakDue.timeIntervalSince(now))),
+                    .notifyPreBreak(kind, config.preBreakWarning),
+                ]
             }
             return [.updateStatus(.working(remaining: breakDue.timeIntervalSince(now)))]
 

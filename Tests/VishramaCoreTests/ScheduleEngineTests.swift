@@ -467,3 +467,56 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0))))
     }
 }
+
+@Suite struct PreBreakHeadsUp {
+    private func engineWithWarning(_ lead: TimeInterval) -> ScheduleEngine {
+        ScheduleEngine(
+            config: BreakConfiguration(preBreakWarning: lead),
+            startAt: t0
+        )
+    }
+
+    @Test func headsUpFiresAtConfiguredLeadBeforeBreak() {
+        let engine = engineWithWarning(60)
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let effects = engine.tick(now: t0.addingTimeInterval(24 * 60), context: ContextSnapshot())
+        #expect(effects.contains(.notifyPreBreak(.short, 60)))
+        // Still working — the break itself hasn't fired.
+        #expect(effects.contains(.updateStatus(.working(remaining: 60))))
+    }
+
+    @Test func headsUpFiresOnlyOncePerBreak() {
+        let engine = engineWithWarning(60)
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        _ = engine.tick(now: t0.addingTimeInterval(24 * 60), context: ContextSnapshot())
+        let again = engine.tick(now: t0.addingTimeInterval(24 * 60 + 30), context: ContextSnapshot())
+        #expect(!again.contains(.notifyPreBreak(.short, 60)))
+    }
+
+    @Test func zeroLeadDisablesHeadsUp() {
+        let engine = engineWithWarning(0)
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let effects = engine.tick(now: t0.addingTimeInterval(25 * 60 - 1), context: ContextSnapshot())
+        #expect(!effects.contains { if case .notifyPreBreak = $0 { return true } else { return false } })
+    }
+
+    @Test func noHeadsUpDuringMeeting() {
+        // The break will be suppressed anyway — don't tease it.
+        let engine = engineWithWarning(60)
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let effects = engine.tick(
+            now: t0.addingTimeInterval(24 * 60),
+            context: ContextSnapshot(activeSignals: [.cameraMic]))
+        #expect(!effects.contains { if case .notifyPreBreak = $0 { return true } else { return false } })
+    }
+
+    @Test func postponedBreakGetsAFreshHeadsUp() {
+        let engine = engineWithWarning(60)
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due.addingTimeInterval(-60), context: ContextSnapshot())  // first warning
+        _ = engine.tick(now: due, context: ContextSnapshot())                          // break fires
+        _ = engine.postpone(now: due)                                                  // +5 min
+        let effects = engine.tick(now: due.addingTimeInterval(4 * 60), context: ContextSnapshot())
+        #expect(effects.contains(.notifyPreBreak(.short, 60)))
+    }
+}

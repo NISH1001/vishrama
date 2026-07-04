@@ -170,6 +170,13 @@ struct SettingsView: View {
             Section("Behavior") {
                 Stepper("Pause countdown after \(store.idlePauseMin) min away", value: $store.idlePauseMin, in: 1...15)
                 Stepper("Postpone pushes break by \(store.postponeMin) min", value: $store.postponeMin, in: 1...30)
+                Picker("Heads-up before a break", selection: $store.preBreakWarnSec) {
+                    Text("Off").tag(0)
+                    Text("30 seconds").tag(30)
+                    Text("1 minute").tag(60)
+                    Text("2 minutes").tag(120)
+                    Text("5 minutes").tag(300)
+                }
             }
         }
         .formStyle(.grouped)

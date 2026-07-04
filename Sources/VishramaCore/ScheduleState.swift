@@ -18,6 +18,8 @@ public enum Effect: Equatable, Sendable {
     case hideOverlay
     /// Flow mode: announce the due break gently instead of taking the screen.
     case notifyBreak(BreakKind)
+    /// Heads-up: a break arrives in the given number of seconds.
+    case notifyPreBreak(BreakKind, TimeInterval)
     /// Record a behavior event; the shell enriches it with timestamp/app/signals.
     case log(BreakEventKind, BreakKind?)
 }

@@ -38,6 +38,20 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
+    /// Heads-up shortly before a break takes the screen.
+    func notifyPreBreak(kind: BreakKind, lead: TimeInterval) {
+        guard authorized else { return }
+        let content = UNMutableNotificationContent()
+        let when = lead >= 60
+            ? "\(Int((lead / 60).rounded())) min"
+            : "\(Int(lead.rounded()))s"
+        content.title = kind == .short ? "Eye break in \(when) 🌻" : "Standup break in \(when) 🌻"
+        content.body = "Wrap up your thought — a mindful pause is coming."
+        content.categoryIdentifier = Self.categoryID
+        content.sound = nil
+        center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse

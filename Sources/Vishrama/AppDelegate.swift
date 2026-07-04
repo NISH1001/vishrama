@@ -214,6 +214,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let prompt = settings.prompts(for: kind).first ?? "Take a pause"
                 notifications.notifyBreakDue(kind: kind, prompt: prompt)
                 Self.log.notice("flow-mode notification: \(kind.rawValue, privacy: .public)")
+            case .notifyPreBreak(let kind, let lead):
+                notifications.notifyPreBreak(kind: kind, lead: lead)
+                Self.log.notice("pre-break heads-up: \(kind.rawValue, privacy: .public) in \(Int(lead))s")
             case .log(let eventKind, let breakKind):
                 let event = BreakEvent(
                     ts: Date(),
