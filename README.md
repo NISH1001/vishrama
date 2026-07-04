@@ -55,6 +55,9 @@ behavior** (skips, flow sessions) instead of nagging blindly.
   including the reminder messages.
 - **Full-screen break overlay** — gentle dim with the prompt, countdown, skip/postpone
   (Esc postpones). Never a cage.
+- **Pre-break heads-up** — a quiet notification before the overlay ("Eye break in 1 min 🌻
+  — wrap up your thought"), so a break never ambushes you mid-sentence. Configurable
+  from 30 s to 5 min, or off; default 1 minute. Skipped when you're in a meeting.
 - **Context awareness** *(the point of this app)*:
   - camera/mic in use → you're in a meeting → breaks wait (menu shows `⏳ +overdue`),
     then appear a polite minute after you're free
@@ -72,7 +75,8 @@ behavior** (skips, flow sessions) instead of nagging blindly.
     visible in **Settings → Adaptivity** with a per-rule off switch. Nothing acts invisibly.
     Full algorithm write-up: [docs/adaptivity.md](docs/adaptivity.md).
 - **History** — a humanized timeline of your last week: breaks taken, skipped, held back
-  by meetings, flow sessions, pauses.
+  by meetings, flow sessions, pauses. A confirmed **Clear Log** wipes the record (and
+  everything pattern learning has observed) whenever you want a fresh start.
 - **Yours, everywhere** — data lives in `iCloud Drive ▸ Vishrama` by default
   (`settings.json` + `events/*.jsonl`, both human-readable). Both Macs pointed at the
   same folder = one app across machines. Local-only or any custom folder also supported.
@@ -158,8 +162,9 @@ so every scheduling behavior is testable with an injected clock (46 tests and co
 
 ## Roadmap
 
-Pre-break heads-up notification, meeting-gap break suggestions ("meeting in 10 min —
-good time for your break"), daily stats in the popover.
+Daily stats in the panel ("6 poms · 4 breaks taken · 3h 40m focused"), meeting-gap break
+suggestions ("meeting in 10 min — good time for your break"), Anapana breathing pacer on
+the break overlay.
 
 ## License
 
