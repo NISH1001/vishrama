@@ -109,6 +109,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.apply(self.engine.breakNow(now: Date()))
         }
 
+        // Lid-close/sleep accounting: the idle monitor can't see abrupt sleeps.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(systemWillSleep),
+            name: NSWorkspace.willSleepNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(systemDidWake),
+            name: NSWorkspace.didWakeNotification, object: nil)
+
         // .common mode so the countdown keeps ticking while menus are open.
         let timer = Timer(timeInterval: 1.0, target: self, selector: #selector(timerFired), userInfo: nil, repeats: true)
         RunLoop.main.add(timer, forMode: .common)
@@ -188,6 +196,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func recomputePatterns() {
         learner.recompute(from: eventLog)
+    }
+
+    private var sleepBegan: Date?
+
+    @objc private func systemWillSleep() {
+        sleepBegan = Date()
+    }
+
+    @objc private func systemDidWake() {
+        guard let began = sleepBegan else { return }
+        sleepBegan = nil
+        let duration = Date().timeIntervalSince(began)
+        apply(engine.systemSlept(for: duration, now: Date()))
+        Self.log.notice("woke after \(Int(duration))s asleep")
     }
 
     // MARK: - Mastishka handshake (specs/ecosystem-protocol.md in the mastishka repo)

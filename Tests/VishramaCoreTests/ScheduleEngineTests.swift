@@ -548,3 +548,37 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(engine.finishBreak(now: t0.addingTimeInterval(60)) == [])
     }
 }
+
+@Suite struct SleepWake {
+    @Test func longSleepCreditsTheNaturalBreak() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        // Lid closed at t0+20min, slept 8h.
+        let wake = t0.addingTimeInterval(20 * 60 + 8 * 3600)
+        let effects = engine.systemSlept(for: 8 * 3600, now: wake)
+        #expect(effects.contains(.log(.naturalBreak, .short)))
+        #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0))))
+    }
+
+    @Test func shortNapDefersTheDueBreakInsteadOfAmbushing() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        // Lid closed 1 min before the break was due; napped 3 min (< break length).
+        let wake = t0.addingTimeInterval(24 * 60 + 3 * 60)
+        let effects = engine.systemSlept(for: 3 * 60, now: wake)
+        #expect(effects.contains(.updateStatus(.working(remaining: 60.0))))
+        // No overlay on the wake tick...
+        let tick = engine.tick(now: wake.addingTimeInterval(1), context: ContextSnapshot())
+        #expect(!tick.contains(.showOverlay(.short)))
+        // ...but the break arrives after the remaining minute.
+        let due = engine.tick(now: wake.addingTimeInterval(61), context: ContextSnapshot())
+        #expect(due.contains(.showOverlay(.short)))
+    }
+
+    @Test func sleepWhilePausedChangesNothing() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        _ = engine.togglePause(now: t0.addingTimeInterval(60))
+        #expect(engine.systemSlept(for: 3600, now: t0.addingTimeInterval(2 * 3600)) == [])
+    }
+}

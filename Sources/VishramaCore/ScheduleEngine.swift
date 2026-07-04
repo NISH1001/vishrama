@@ -131,6 +131,26 @@ public final class ScheduleEngine {
         }
     }
 
+    /// System slept (lid closed) while we were in `working` — the idle
+    /// machinery never saw it coming, so account for the absence here:
+    /// long sleep = the break happened naturally; a nap defers the due time
+    /// so waking is never ambushed by an instantly-overdue overlay.
+    public func systemSlept(for duration: TimeInterval, now: Date) -> [Effect] {
+        guard case .working(let breakDue, let completed) = state else { return [] }
+        let pending = pendingBreakKind(completedShortBreaks: completed)
+        if duration >= config.duration(of: pending) {
+            return completeBreak(of: pending, completedShortBreaks: completed, now: now) + [.log(.naturalBreak, pending)]
+        }
+        if duration >= config.shortDuration {
+            state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: completed)
+            return [.updateStatus(.working(remaining: scaledInterval))]
+        }
+        // Brief nap: resume with whatever work time was left when the lid closed.
+        let remaining = max(0, breakDue.timeIntervalSince(now.addingTimeInterval(-duration)))
+        state = .working(breakDue: now.addingTimeInterval(remaining), completedShortBreaks: completed)
+        return [.updateStatus(.working(remaining: remaining))]
+    }
+
     /// Menu action: start over — full interval, clean backoff/flow slate.
     public func reset(now: Date) -> [Effect] {
         let completed: Int
