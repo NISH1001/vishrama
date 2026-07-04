@@ -283,7 +283,7 @@ struct SettingsView: View {
             } header: {
                 Text("Ecosystem")
             } footer: {
-                Text("Vishrama hands the meditation session off to Mastishka — when the sit ends, the break is credited as completed.")
+                Text("Hands the sit to Mastishka — the break is credited when it ends.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
