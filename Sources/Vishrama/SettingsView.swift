@@ -253,16 +253,16 @@ struct SettingsView: View {
                         }
                     }
                     VStack(alignment: .leading, spacing: 1) {
-                        Link("Mastishka — मस्तिष्क",
-                             destination: URL(string: "https://github.com/NISH1001/mastishka")!)
+                        Text("Mastishka — मस्तिष्क")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.primary)
-                            .underline(pattern: .dot, color: .secondary)
-                        Text(Self.mastishkaInstalled
-                             ? "detected on this Mac ✓"
-                             : "not installed — breaks will open the web sit")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            Text(Self.mastishkaInstalled
+                                 ? "detected on this Mac ✓"
+                                 : "not installed — breaks will open the web sit")
+                                .foregroundStyle(.secondary)
+                            Link("repo ↗", destination: URL(string: "https://github.com/NISH1001/mastishka")!)
+                        }
+                        .font(.caption)
                     }
                     Spacer()
                     if !Self.mastishkaInstalled {
