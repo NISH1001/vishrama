@@ -236,6 +236,29 @@ struct SettingsView: View {
             }
 
             Section {
+                Toggle("Offer \"Sit with Mastishka\" on standup breaks", isOn: $store.mastishkaEnabled)
+                if store.mastishkaEnabled {
+                    Picker("Practice", selection: $store.mastishkaPractice) {
+                        Text("Anapana").tag("anapana")
+                        Text("Vipassana").tag("vipassana")
+                        Text("Metta").tag("metta")
+                        Text("Meditation").tag("meditation")
+                    }
+                    LabeledContent("Mastishka on this Mac") {
+                        Text(Self.mastishkaInstalled ? "detected ✓" : "not installed — will open the web sit")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Ecosystem")
+            } footer: {
+                Text("Hands a standup break to Mastishka for a proper sit (the sit auto-starts, sized to the break). When the sit ends, the break is credited as completed. No accounts, no pairing — just the two apps tipping hats.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 LabeledContent("Version") {
                     Text(Self.versionString)
                         .foregroundStyle(.secondary)
@@ -243,6 +266,11 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    static var mastishkaInstalled: Bool {
+        guard let url = URL(string: "mastishka://sit") else { return false }
+        return NSWorkspace.shared.urlForApplication(toOpen: url) != nil
     }
 
     static var versionString: String {

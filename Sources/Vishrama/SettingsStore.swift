@@ -47,6 +47,15 @@ final class SettingsStore: ObservableObject {
     @Published var panelSize: PanelSize {
         didSet { defaults.set(panelSize.rawValue, forKey: "panelSize") }
     }
+
+    /// Offer "Sit with Mastishka" on standup breaks (ecosystem handshake).
+    @Published var mastishkaEnabled: Bool {
+        didSet { defaults.set(mastishkaEnabled, forKey: "mastishkaEnabled") }
+    }
+    /// Practice slug sent with the sit command (specs/ecosystem-protocol.md).
+    @Published var mastishkaPractice: String {
+        didSet { defaults.set(mastishkaPractice, forKey: "mastishkaPractice") }
+    }
     @Published var shortPrompts: [String] {
         didSet { defaults.set(shortPrompts, forKey: "shortPrompts") }
     }
@@ -142,6 +151,8 @@ final class SettingsStore: ObservableObject {
         postponeMin = defaults.object(forKey: "postponeMin") as? Int ?? 5
         preBreakWarnSec = defaults.object(forKey: "preBreakWarnSec") as? Int ?? 60
         panelSize = defaults.string(forKey: "panelSize").flatMap(PanelSize.init) ?? .comfortable
+        mastishkaEnabled = defaults.object(forKey: "mastishkaEnabled") as? Bool ?? true
+        mastishkaPractice = defaults.string(forKey: "mastishkaPractice") ?? "anapana"
         shortPrompts = defaults.stringArray(forKey: "shortPrompts") ?? Self.defaultShortPrompts
         longPrompts = defaults.stringArray(forKey: "longPrompts") ?? Self.defaultLongPrompts
         launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -170,6 +181,8 @@ final class SettingsStore: ObservableObject {
         var postponeMin: Int
         // Optional so settings.json written by older versions still imports.
         var preBreakWarnSec: Int?
+        var mastishkaEnabled: Bool?
+        var mastishkaPractice: String?
         var shortPrompts: [String]
         var longPrompts: [String]
         var signalCameraMic: Bool
@@ -185,6 +198,7 @@ final class SettingsStore: ObservableObject {
             longDurationMin: longDurationMin, longBreakEvery: longBreakEvery,
             idlePauseMin: idlePauseMin, postponeMin: postponeMin,
             preBreakWarnSec: preBreakWarnSec,
+            mastishkaEnabled: mastishkaEnabled, mastishkaPractice: mastishkaPractice,
             shortPrompts: shortPrompts, longPrompts: longPrompts,
             signalCameraMic: signalCameraMic, signalScreenShare: signalScreenShare,
             signalCalendar: signalCalendar, presentingApps: presentingApps
@@ -213,6 +227,8 @@ final class SettingsStore: ObservableObject {
         idlePauseMin = snapshot.idlePauseMin
         postponeMin = snapshot.postponeMin
         if let warn = snapshot.preBreakWarnSec { preBreakWarnSec = warn }
+        if let enabled = snapshot.mastishkaEnabled { mastishkaEnabled = enabled }
+        if let practice = snapshot.mastishkaPractice { mastishkaPractice = practice }
         shortPrompts = snapshot.shortPrompts
         longPrompts = snapshot.longPrompts
         signalCameraMic = snapshot.signalCameraMic

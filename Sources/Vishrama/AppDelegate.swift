@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.engine = ScheduleEngine(config: self.settings.configuration, startAt: Date())
                     self.rebuildSignalProviders()
                     self.statusItemController.statusModel.panelScale = self.settings.panelSize.scale
+                    self.updateMastishkaHook()
                     if self.eventLog.directory != self.currentEventsDirectory {
                         self.remakeEventLog()
                     }
@@ -100,9 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.apply(self.engine.postpone(now: Date()))
         }
-        overlayController.onSitWithMastishka = { [weak self] in
-            self?.openMastishkaSit()
-        }
+        updateMastishkaHook()
 
         notifications.setup()
         notifications.onTakeBreak = { [weak self] in
@@ -196,9 +195,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Hand the current long break to Mastishka for a proper sit. The overlay
     /// steps aside; the break keeps counting and completes via the callback
     /// (or naturally at its scheduled end).
+    /// The overlay shows the sit link only while the setting is on.
+    private func updateMastishkaHook() {
+        overlayController.onSitWithMastishka = settings.mastishkaEnabled
+            ? { [weak self] in self?.openMastishkaSit() }
+            : nil
+    }
+
     private func openMastishkaSit() {
         let minutes = max(1, Int((overlayController.model.remaining / 60).rounded(.up)))
-        let sitURL = URL(string: "mastishka://sit?practice=anapana&minutes=\(minutes)&autostart=1&source=vishrama")!
+        let practice = settings.mastishkaPractice
+        let sitURL = URL(string: "mastishka://sit?practice=\(practice)&minutes=\(minutes)&autostart=1&source=vishrama")!
         overlayController.hide()
         // Protocol: senders MUST check a handler exists; else fall back to the web sit.
         if NSWorkspace.shared.urlForApplication(toOpen: sitURL) != nil {
