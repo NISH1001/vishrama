@@ -243,8 +243,12 @@ struct SettingsView: View {
                                 .resizable()
                                 .frame(width: 32, height: 32)
                         } else {
-                            Text("🧘")
-                                .font(.system(size: 24))
+                            // Mastishka's own menu-bar glyph, in its mint.
+                            Image(systemName: "circle.circle")
+                                .font(.system(size: 24, weight: .light))
+                                .foregroundStyle(Self.mastishkaInstalled
+                                    ? Color(red: 0x8F / 255.0, green: 0xD3 / 255.0, blue: 0xC2 / 255.0)
+                                    : Color.secondary)
                                 .frame(width: 32, height: 32)
                         }
                     }
@@ -299,10 +303,15 @@ struct SettingsView: View {
         return NSWorkspace.shared.urlForApplication(toOpen: url) != nil
     }
 
-    /// The real app icon when mastishka-mac is installed; nil → emoji fallback.
+    /// The real app icon when mastishka-mac ships one; nil → glyph fallback.
+    /// (A bundle with no declared icon would render macOS's generic grid,
+    /// which reads as broken — prefer the sibling's own menu-bar glyph.)
     static var mastishkaIcon: NSImage? {
         guard let url = URL(string: "mastishka://sit"),
-              let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
+              let appURL = NSWorkspace.shared.urlForApplication(toOpen: url),
+              let bundle = Bundle(url: appURL),
+              bundle.object(forInfoDictionaryKey: "CFBundleIconFile") != nil
+                || bundle.object(forInfoDictionaryKey: "CFBundleIconName") != nil
         else { return nil }
         return NSWorkspace.shared.icon(forFile: appURL.path)
     }
@@ -342,16 +351,20 @@ struct SettingsView: View {
 }
 
 /// Newline-joined editor for a list of prompt strings.
+/// Owns its text locally while editing — a computed two-way binding would
+/// re-render stale content mid-keystroke and eat trailing characters.
 private struct PromptsEditor: View {
     @Binding var lines: [String]
+    @State private var text = ""
 
     var body: some View {
-        TextEditor(text: Binding(
-            get: { lines.joined(separator: "\n") },
-            set: { lines = $0.components(separatedBy: "\n") }
-        ))
-        .font(.body)
-        .frame(minHeight: 80)
-        .scrollContentBackground(.hidden)
+        TextEditor(text: $text)
+            .font(.body)
+            .frame(minHeight: 80)
+            .scrollContentBackground(.hidden)
+            .onAppear { text = lines.joined(separator: "\n") }
+            .onChange(of: text) { _, newValue in
+                lines = newValue.components(separatedBy: "\n")
+            }
     }
 }
