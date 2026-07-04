@@ -255,14 +255,11 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Mastishka — मस्तिष्क")
                             .font(.system(size: 13, weight: .medium))
-                        HStack(spacing: 6) {
-                            Text(Self.mastishkaInstalled
-                                 ? "detected on this Mac ✓"
-                                 : "not installed — breaks will open the web sit")
-                                .foregroundStyle(.secondary)
-                            Link("repo ↗", destination: URL(string: "https://github.com/NISH1001/mastishka")!)
-                        }
-                        .font(.caption)
+                        Text(Self.mastishkaInstalled
+                             ? "detected on this Mac ✓"
+                             : "not installed — breaks will open the web sit")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     if !Self.mastishkaInstalled {
@@ -286,7 +283,7 @@ struct SettingsView: View {
             } header: {
                 Text("Ecosystem")
             } footer: {
-                Text("Hands the sit to Mastishka — the break is credited when it ends.")
+                Text(.init("Hands the sit to [Mastishka](https://github.com/NISH1001/mastishka) — the break is credited when it ends."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
