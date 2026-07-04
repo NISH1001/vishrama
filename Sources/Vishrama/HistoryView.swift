@@ -168,7 +168,13 @@ struct HistoryView: View {
         case .naturalBreak: "🍃"
         case .paused: "🥀"
         case .resumed: "🌻"
+        case .slept: "💤"
         }
+    }
+
+    static func sleepDuration(_ seconds: Double) -> String {
+        let minutes = Int(seconds / 60)
+        return minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
     }
 
     static func title(for event: BreakEvent) -> String {
@@ -185,6 +191,9 @@ struct HistoryView: View {
         case .naturalBreak: return "Natural break — you were away"
         case .paused: return "Paused"
         case .resumed: return "Resumed"
+        case .slept:
+            let span = event.durationSec.map(Self.sleepDuration) ?? "a while"
+            return "Slept — \(span)"
         }
     }
 

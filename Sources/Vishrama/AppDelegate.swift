@@ -209,6 +209,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sleepBegan = nil
         let duration = Date().timeIntervalSince(began)
         apply(engine.systemSlept(for: duration, now: Date()))
+        // Raw truth for the diary (and future rhythm learning): hardware slept.
+        if duration >= 30 {
+            let slept = BreakEvent(ts: Date(), event: .slept, durationSec: duration)
+            try? eventLog.append(slept)
+        }
         Self.log.notice("woke after \(Int(duration))s asleep")
     }
 

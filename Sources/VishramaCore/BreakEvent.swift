@@ -12,6 +12,7 @@ public enum BreakEventKind: String, Codable, Sendable, Equatable {
     case notified       // flow mode: notification instead of overlay
     case paused         // user paused from the menu bar
     case resumed
+    case slept          // hardware sleep (lid closed); logged on wake with duration
     case naturalBreak   // long idle counted as a break
 }
 
@@ -30,6 +31,9 @@ public struct BreakEvent: Codable, Equatable, Sendable {
     public var idleSec: Double
     public var backoffLevel: Int
     public var workedSec: Double
+    /// Span of the event where one applies (e.g. slept). Optional so lines
+    /// written by older versions keep decoding.
+    public var durationSec: Double?
 
     public init(
         ts: Date,
@@ -40,6 +44,7 @@ public struct BreakEvent: Codable, Equatable, Sendable {
         idleSec: Double = 0,
         backoffLevel: Int = 0,
         workedSec: Double = 0,
+        durationSec: Double? = nil,
         calendar: Calendar = .current
     ) {
         self.v = 1
@@ -53,5 +58,6 @@ public struct BreakEvent: Codable, Equatable, Sendable {
         self.idleSec = idleSec
         self.backoffLevel = backoffLevel
         self.workedSec = workedSec
+        self.durationSec = durationSec
     }
 }

@@ -186,3 +186,23 @@ private func makeEvent(ts: Date, event: BreakEventKind = .fired) -> BreakEvent {
         #expect(try store.events(since: .distantPast).isEmpty)
     }
 }
+
+@Suite struct SleptEvents {
+    @Test func sleptEventWithDurationRoundTrips() throws {
+        let store = try makeTempStore()
+        let ts = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        let slept = BreakEvent(ts: ts, event: .slept, durationSec: 8.5 * 3600)
+        try store.append(slept)
+        let read = try store.events(since: .distantPast)
+        #expect(read.first?.event == .slept)
+        #expect(read.first?.durationSec == 8.5 * 3600)
+    }
+
+    @Test func oldLinesWithoutDurationStillDecode() throws {
+        let store = try makeTempStore()
+        let ts = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        try store.append(makeEvent(ts: ts))
+        let read = try store.events(since: .distantPast)
+        #expect(read.first?.durationSec == nil)
+    }
+}
