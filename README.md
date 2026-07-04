@@ -89,10 +89,9 @@ behavior** (skips, flow sessions) instead of nagging blindly.
   (auto-started, sized to the break, practice of your choice); when the sit is saved,
   vishrama credits the break as completed. URL schemes only — no accounts, no pairing.
   vishrama reminds you to rest; mastishka is where you practice.
-- **Yours, everywhere** — data lives in `iCloud Drive ▸ Vishrama` by default
-  (`settings.json` + `events/*.jsonl`, both human-readable). Both Macs pointed at the
-  same folder = one app across machines. Local-only or any custom folder also supported.
-  Nothing ever leaves your own storage.
+- **Yours, everywhere** — all data is human-readable files in a folder you choose
+  (see [Data layout](#data-layout)); iCloud Drive by default, so both Macs feel like
+  one app. Nothing ever leaves your own storage.
 
 ## Install
 
@@ -145,6 +144,28 @@ after that it launches like any other app.
 
 Download the newer DMG and drag to Applications again (replace). Settings and history
 live in your data folder, not the app, so nothing is lost.
+
+## Data layout
+
+Everything vishrama knows lives as plain files in one folder — **Settings → General →
+Data** picks where (iCloud Drive by default; local or any custom folder work too):
+
+```
+<data folder>/                      e.g. iCloud Drive ▸ Vishrama
+├── settings.json                   full config mirror — written at launch and on
+│                                   every change; imported at launch (file wins),
+│                                   so a second Mac inherits your setup
+└── events/
+    └── YYYY-MM.jsonl               behavior log, one JSON object per line:
+                                    fired / completed / skipped / postponed /
+                                    suppressed / flow / natural-break / pause events,
+                                    each with hour, weekday, frontmost app, signals
+```
+
+The event log feeds History, Stats, and pattern learning; delete it (History →
+Clear Log) and all three reset. Point both Macs at the same folder and vishrama
+behaves like one app across them. Per-machine bits (launch-at-login, data-location
+choice itself) stay in local UserDefaults by design.
 
 ## Build from source
 

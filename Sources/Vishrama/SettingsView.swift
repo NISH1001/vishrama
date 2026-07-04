@@ -230,7 +230,7 @@ struct SettingsView: View {
             } header: {
                 Text("Data")
             } footer: {
-                Text("Settings and break history live here (settings.json + events/). Point both your Macs at the same iCloud Drive or shared folder and Vishrama feels like one app across them. Nothing ever leaves your own storage.")
+                Text("Settings and history live here.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
