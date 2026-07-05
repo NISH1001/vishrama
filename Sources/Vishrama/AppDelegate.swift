@@ -80,10 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.apply(self.engine.reset(now: Date()))
         }
-        statusItemController.onHistory = { [weak self] in
-            self?.insightsWindowController.show(tab: .history)
-        }
-        statusItemController.onStats = { [weak self] in
+        statusItemController.onInsights = { [weak self] in
             self?.insightsWindowController.show(tab: .stats)
         }
         statusItemController.onCheckUpdates = { [weak self] in

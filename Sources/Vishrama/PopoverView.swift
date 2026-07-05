@@ -46,8 +46,7 @@ struct PopoverView: View {
     let onTogglePause: () -> Void
     let onBreakNow: () -> Void
     let onReset: () -> Void
-    let onHistory: () -> Void
-    let onStats: () -> Void
+    let onInsights: () -> Void
     let onSettings: () -> Void
 
     /// All key dimensions multiply by the settings-chosen scale.
@@ -91,9 +90,7 @@ struct PopoverView: View {
             Divider()
 
             HStack {
-                Button("History", action: onHistory)
-                Spacer()
-                Button("Stats", action: onStats)
+                Button("Insights", action: onInsights)
                 Spacer()
                 Button("Settings", action: onSettings)
                 Spacer()

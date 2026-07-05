@@ -20,8 +20,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             onTogglePause: { [weak self] in self?.onTogglePause?() },
             onBreakNow: { [weak self] in self?.closePanel(); self?.onBreakNow?() },
             onReset: { [weak self] in self?.onReset?() },
-            onHistory: { [weak self] in self?.closePanel(); self?.onHistory?() },
-            onStats: { [weak self] in self?.closePanel(); self?.onStats?() },
+            onInsights: { [weak self] in self?.closePanel(); self?.onInsights?() },
             onSettings: { [weak self] in self?.closePanel(); self?.onSettings?() }
         ))
         let panel = NSPanel(
@@ -46,8 +45,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var onTogglePause: (() -> Void)?
     var onReset: (() -> Void)?
     var onSettings: (() -> Void)?
-    var onHistory: (() -> Void)?
-    var onStats: (() -> Void)?
+    var onInsights: (() -> Void)?
     /// Fired on any click of the status item — lets the app tuck auxiliary
     /// windows (Settings/History) away, keeping the menu-bar feel transient.
     var onStatusInteraction: (() -> Void)?
@@ -223,13 +221,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(reset)
 
         menu.addItem(.separator())
-        let history = NSMenuItem(title: "History", action: #selector(historyClicked), keyEquivalent: "h")
-        history.target = self
-        menu.addItem(history)
-
-        let stats = NSMenuItem(title: "Stats", action: #selector(statsClicked), keyEquivalent: "s")
-        stats.target = self
-        menu.addItem(stats)
+        let insights = NSMenuItem(title: "Insights", action: #selector(insightsClicked), keyEquivalent: "i")
+        insights.target = self
+        menu.addItem(insights)
 
         let settings = NSMenuItem(title: "Settings…", action: #selector(settingsClicked), keyEquivalent: ",")
         settings.target = self
@@ -263,12 +257,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         onReset?()
     }
 
-    @objc private func historyClicked() {
-        onHistory?()
-    }
-
-    @objc private func statsClicked() {
-        onStats?()
+    @objc private func insightsClicked() {
+        onInsights?()
     }
 
     var onCheckUpdates: (() -> Void)?
