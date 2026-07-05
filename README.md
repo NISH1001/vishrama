@@ -198,8 +198,27 @@ Requires macOS 14+ and Swift 6 (Command Line Tools are enough — no Xcode).
 ```
 
 The app is a proper `.app` bundle (`dev.nishparadox.vishrama`) so TCC permission prompts
-(Calendar) work. For stable permissions across rebuilds, create a self-signed code-signing
-certificate named `VishramaDev` in Keychain Access — the build script picks it up automatically.
+(Calendar) work.
+
+### Stable signing (recommended if you rebuild often)
+
+By default builds are ad-hoc signed, which gives the app a **new identity every build** —
+macOS then forgets granted permissions (Calendar) after each rebuild. A one-time
+self-signed certificate fixes this:
+
+1. **Keychain Access** → menu *Keychain Access → Certificate Assistant → Create a
+   Certificate…*
+2. Name: **`VishramaDev`** (exact — the build script greps for this name) ·
+   Identity Type: *Self-Signed Root* · Certificate Type: **Code Signing** → Create.
+3. New certs aren't trusted for code signing yet (`security find-identity -v -p
+   codesigning` will say *0 valid identities*). Trust it:
+   ```sh
+   security find-certificate -c VishramaDev -p > /tmp/vishramadev.pem
+   security add-trusted-cert -p codeSign /tmp/vishramadev.pem
+   ```
+4. Rebuild — the script auto-detects it (`identity: VishramaDev` in the output).
+   macOS will treat the next launch as a new app one final time; re-grant Calendar
+   once and permissions survive all future rebuilds.
 
 ## Architecture
 
