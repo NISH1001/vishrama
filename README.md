@@ -65,8 +65,12 @@ behavior** (skips, flow sessions) instead of nagging blindly.
   - screen sharing / presenting → detected via helper processes and your own app list —
     and the overlay is **invisible to screen capture** as a hard guarantee
   - calendar busy (EventKit; Google accounts via macOS Internet Accounts) → breaks wait
+  - **meeting-gap breaks**: when you're most of the way through an interval and a busy
+    event starts soon, the break pulls itself *forward* ("Meeting soon — a good moment
+    for your break") so it fits before the meeting instead of hiding through it
   - idle detection → the countdown pauses when you step away; a long absence counts as
-    the break itself
+    the break itself; closing the lid is handled gracefully (long sleep = the break,
+    short nap = resume where you left off)
 - **Adaptive**:
   - skip a break → it retries in 5/10/20 min (growing backoff), not a full cycle
   - three skips in 90 min → *flow mode*: 45 min of gentle notifications instead of overlays
@@ -84,6 +88,9 @@ behavior** (skips, flow sessions) instead of nagging blindly.
 - **History** — a humanized timeline of your last week: breaks taken, skipped, held back
   by meetings, flow sessions, pauses. A confirmed **Clear Log** wipes the record (and
   everything pattern learning has observed) whenever you want a fresh start.
+- **A schedule with a memory** — the countdown, long-break cycle, and adaptive state
+  survive settings edits, app relaunches, and reboots. Editing a prompt mid-pomodoro
+  costs you nothing. Settings → Version checks for new releases against GitHub.
 - **The Mastishka handshake** — standup breaks offer *Sit with Mastishka 🧘*: one click
   hands the break to [mastishka](https://github.com/NISH1001/mastishka) for a proper sit
   (auto-started, sized to the break, practice of your choice); when the sit is saved,
@@ -137,8 +144,10 @@ after that it launches like any other app.
    - **Settings → General** → enable *Launch Vishrama at login*.
    - **Settings → General → Data** → keep *iCloud Drive* if you use multiple Macs
      (settings + history sync via `iCloud Drive ▸ Vishrama`).
-   - **Settings → Context** → enable *Busy calendar event* if you want calendar
-     awareness (macOS asks for Calendar access once).
+   - **Settings → Context** → enable *Busy calendar event* for calendar awareness
+     (macOS asks for Calendar access once — click Allow). To verify it took: create
+     a short calendar event covering right now and watch the dot next to the toggle
+     turn green. This also enables meeting-gap breaks.
 
 ### Updating
 
@@ -207,8 +216,14 @@ so every scheduling behavior is testable with an injected clock (46 tests and co
 
 ## Roadmap
 
-Anapana breathing pacer on the break overlay, meeting-gap break suggestions
-("meeting in 10 min — good time for your break").
+Rhythm awareness: the log already records hardware sleeps (💤), and once enough
+accumulate, gentle inferences follow — a grace period after your morning wake,
+softer breaks in your usual wind-down hours, day-span in Stats.
+
+Deliberately *not* on the roadmap: guided breathing / meditation features — that's
+[mastishka](https://github.com/NISH1001/mastishka)'s job (vishrama hands sits over
+via the Mastishka handshake instead). vishrama reminds you to rest; mastishka is
+where you practice.
 
 ## License
 
