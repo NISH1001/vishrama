@@ -55,7 +55,8 @@ behavior** (skips, flow sessions) instead of nagging blindly.
   neck); a standup break (walk, Anapana) after every K eye breaks. Everything configurable,
   including the reminder messages.
 - **Full-screen break overlay** — gentle dim with the prompt, countdown, skip/postpone
-  (Esc postpones). Never a cage.
+  (Esc postpones). After a quarter of the break, a **"Done — back to work"** button
+  appears — full credit, early exit (unlike Skip, which records not-resting). Never a cage.
 - **Pre-break heads-up** — a quiet notification before the overlay ("Eye break in 1 min 🌻
   — wrap up your thought"), so a break never ambushes you mid-sentence. Configurable
   from 30 s to 5 min, or off; default 1 minute. Skipped when you're in a meeting.
@@ -68,6 +69,11 @@ behavior** (skips, flow sessions) instead of nagging blindly.
   - **meeting-gap breaks**: when you're most of the way through an interval and a busy
     event starts soon, the break pulls itself *forward* ("Meeting soon — a good moment
     for your break") so it fits before the meeting instead of hiding through it
+  - **in-meeting eye reminders (20-20-20)**: when a meeting holds a break back for
+    20+ minutes, a quiet notification whispers "rest your eyes on something distant" —
+    repeating on your chosen cadence, never while screen-sharing, and yielding when
+    the meeting is about to end anyway. Muting doesn't fool it (meeting apps keep the
+    mic device open), and it works with or without calendar access
   - idle detection → the countdown pauses when you step away; a long absence counts as
     the break itself; closing the lid is handled gracefully (long sleep = the break,
     short nap = resume where you left off)
