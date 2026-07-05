@@ -188,8 +188,8 @@ struct StatsView: View {
             .chartYAxis {
                 AxisMarks { _ in AxisValueLabel().font(.caption2) }
             }
-            // Tall enough for 7 weekday rows so cells never overlap the hour axis.
-            .frame(height: 200)
+            // 7 weekday rows; ratio-sized cells stay inside their rows.
+            .frame(height: 168)
         }
     }
 

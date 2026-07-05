@@ -57,7 +57,7 @@ struct InsightsView: View {
             case .history: HistoryView(model: history)
             }
         }
-        .frame(width: 560, height: 640)
+        .frame(width: 560, height: 540)
         .environment(\.colorScheme, .dark)
         .background(Color(red: 0.086, green: 0.10, blue: 0.13))
     }
