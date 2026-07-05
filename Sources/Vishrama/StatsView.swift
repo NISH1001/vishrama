@@ -63,30 +63,17 @@ struct StatsView: View {
         case skips = "Skips"
     }
 
+    // Content only — the window chrome and the shared device filter live in
+    // InsightsView, which hosts this alongside History.
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            if !model.devices.isEmpty {
-                HStack {
-                    Spacer()
-                    Picker("Device", selection: $model.deviceFilter) {
-                        Text("All devices").tag(String?.none)
-                        ForEach(model.devices, id: \.self) { slug in
-                            Text(DeviceIdentity.label(for: slug)).tag(String?.some(slug))
-                        }
-                    }
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .frame(maxWidth: 200)
-                }
-            }
             tiles
             barSection
             heatSection
+            Spacer(minLength: 0)
         }
         .padding(18)
-        .frame(width: 560, height: 570)
-        .environment(\.colorScheme, .dark)
-        .background(Color(red: 0.086, green: 0.10, blue: 0.13))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     // MARK: Today tiles
@@ -135,6 +122,10 @@ struct StatsView: View {
                 .cornerRadius(2)
             }
             .chartForegroundStyleScale(["Taken": ChartColor.taken, "Skipped": ChartColor.skipped])
+            // Auto legend (derived from the style scale) above the plot so it
+            // never crowds the date axis; right-aligned to echo the heatmap's
+            // control below and stay clear of the left-aligned title.
+            .chartLegend(position: .top, alignment: .trailing, spacing: 8)
             .chartXAxis {
                 AxisMarks(values: .stride(by: .day, count: 2)) { _ in
                     AxisValueLabel(format: .dateTime.day(), centered: true)
@@ -173,8 +164,10 @@ struct StatsView: View {
                 RectangleMark(
                     x: .value("Hour", String(cell.hour)),
                     y: .value("Day", Self.weekdayLabel(dow: cell.dow)),
-                    width: .ratio(0.9),
-                    height: .fixed(16)
+                    width: .ratio(0.86),
+                    // Ratio, not fixed: a cell can never overflow its row into
+                    // the axis below — the bug that dogged the bottom (Sun) row.
+                    height: .ratio(0.72)
                 )
                 .foregroundStyle(cellColor(for: cell))
                 .cornerRadius(2)
@@ -182,10 +175,12 @@ struct StatsView: View {
             .chartYScale(domain: Self.weekdayLabels)
             .chartXScale(domain: (0...23).map(String.init))
             .chartXAxis {
-                AxisMarks(values: ["0", "6", "12", "18"]) { value in
+                // Skip the 0-hour tick: at the plot's left edge its label clips.
+                // 6am/noon/6pm sit inland and read cleanly; midnight is the edge.
+                AxisMarks(values: ["6", "12", "18"]) { value in
                     AxisValueLabel {
                         if let hour = value.as(String.self) {
-                            Text("\(hour):00").font(.caption2)
+                            Text(Self.hourLabel(hour)).font(.caption2)
                         }
                     }
                 }
@@ -193,13 +188,24 @@ struct StatsView: View {
             .chartYAxis {
                 AxisMarks { _ in AxisValueLabel().font(.caption2) }
             }
-            .frame(height: 160)
+            // Tall enough for 7 weekday rows so cells never overlap the hour axis.
+            .frame(height: 200)
         }
     }
 
     private static func weekdayLabel(dow: Int) -> String {
         // Calendar dow: 1 = Sunday … 7 = Saturday.
         ["", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow]
+    }
+
+    /// "0"→"12am", "6"→"6am", "12"→"noon", "18"→"6pm".
+    private static func hourLabel(_ hour: String) -> String {
+        switch hour {
+        case "0": "12am"
+        case "12": "noon"
+        case let h where (Int(h) ?? 0) < 12: "\(h)am"
+        default: "\((Int(hour) ?? 0) - 12)pm"
+        }
     }
 
     /// Single-hue sequential ramp: intensity scales with the chosen metric.

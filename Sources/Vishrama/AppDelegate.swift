@@ -14,8 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var eventLog: EventLogStore!
     private var settings: SettingsStore!
     private var settingsWindowController: SettingsWindowController!
-    private var historyWindowController: HistoryWindowController!
-    private var statsWindowController: StatsWindowController!
+    private var insightsWindowController: InsightsWindowController!
     private var settingsObserver: AnyCancellable?
     let contextMonitor = ContextMonitor()
     private let notifications = NotificationManager()
@@ -82,10 +81,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.apply(self.engine.reset(now: Date()))
         }
         statusItemController.onHistory = { [weak self] in
-            self?.historyWindowController.show()
+            self?.insightsWindowController.show(tab: .history)
         }
         statusItemController.onStats = { [weak self] in
-            self?.statsWindowController.show()
+            self?.insightsWindowController.show(tab: .stats)
         }
         statusItemController.onCheckUpdates = { [weak self] in
             self?.updateChecker.checkAndPresentAlert()
@@ -93,8 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Any menu-bar interaction tucks the auxiliary windows away.
         statusItemController.onStatusInteraction = { [weak self] in
             self?.settingsWindowController.close()
-            self?.historyWindowController.close()
-            self?.statsWindowController.close()
+            self?.insightsWindowController.close()
         }
         refreshTodayLine()
         statusItemController.statusModel.panelScale = settings.panelSize.scale
@@ -123,6 +121,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.apply(self.engine.breakNow(now: Date()))
         }
 
+        // Auxiliary windows are menu-bar utilities: clicking away (to another
+        // app or the desktop) tucks them away. App-level deactivation is used
+        // deliberately — in-app dialogs (folder picker, update alert) keep the
+        // app active, so they don't dismiss the window under themselves.
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(appResignedActive),
+            name: NSApplication.didResignActiveNotification, object: nil)
+
         // Lid-close/sleep accounting: the idle monitor can't see abrupt sleeps.
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(systemWillSleep),
@@ -144,8 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 switch open {
                 case "settings": self.settingsWindowController.show()
-                case "history": self.historyWindowController.show()
-                case "stats": self.statsWindowController.show()
+                case "history": self.insightsWindowController.show(tab: .history)
+                case "stats": self.insightsWindowController.show(tab: .stats)
                 case "popover": self.statusItemController.debugShowPopover()
                 case "break": self.apply(self.engine.breakNow(now: Date()))
                 default: break
@@ -173,13 +179,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DataLocation.copyMissingEventFiles(from: DataLocation.localEventsDirectory, to: dir)
         }
         eventLog = EventLogStore(directory: dir, deviceSlug: DeviceIdentity.slug)
-        historyWindowController = HistoryWindowController(store: eventLog)
-        statsWindowController = StatsWindowController(store: eventLog)
-        statsWindowController.model.focusMinutesPerPom = { [weak self] in
+        insightsWindowController = InsightsWindowController(store: eventLog)
+        insightsWindowController.stats.focusMinutesPerPom = { [weak self] in
             self?.settings.shortIntervalMin ?? 25
         }
         // Clearing the log also resets what pattern learning knows.
-        historyWindowController.onCleared = { [weak self] in
+        insightsWindowController.onCleared = { [weak self] in
             guard let self else { return }
             self.learner.recompute(from: self.eventLog)
         }
@@ -240,6 +245,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         saveSnapshot()
+    }
+
+    @objc private func appResignedActive() {
+        settingsWindowController.close()
+        insightsWindowController.close()
     }
 
     private var sleepBegan: Date?

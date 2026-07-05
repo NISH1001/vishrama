@@ -53,21 +53,12 @@ struct HistoryView: View {
     @ObservedObject var model: HistoryModel
     @State private var confirmingClear = false
 
+    // Content only — window chrome and the shared device filter live in
+    // InsightsView. The device filter above still scopes what "Clear Log" clears.
     var body: some View {
         content
             .safeAreaInset(edge: .bottom) {
                 HStack {
-                    if !model.devices.isEmpty {
-                        Picker("Device", selection: $model.deviceFilter) {
-                            Text("All devices").tag(String?.none)
-                            ForEach(model.devices, id: \.self) { slug in
-                                Text(DeviceIdentity.label(for: slug)).tag(String?.some(slug))
-                            }
-                        }
-                        .labelsHidden()
-                        .controlSize(.small)
-                        .frame(maxWidth: 180)
-                    }
                     Spacer()
                     Button("Clear Log…", role: .destructive) { confirmingClear = true }
                         .disabled(model.rows.isEmpty)
@@ -109,7 +100,7 @@ struct HistoryView: View {
                 .listStyle(.inset)
             }
         }
-        .frame(width: 420, height: 480)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var groupedByDay: [(day: String, rows: [TaggedEvent])] {
