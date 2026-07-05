@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let contextMonitor = ContextMonitor()
     private let notifications = NotificationManager()
     private let learner = PatternLearner()
+    private let updateChecker = UpdateChecker()
     private var learnerTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -34,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let learnerTimer = Timer(timeInterval: 6 * 3600, target: self, selector: #selector(recomputePatterns), userInfo: nil, repeats: true)
         RunLoop.main.add(learnerTimer, forMode: .common)
         self.learnerTimer = learnerTimer
-        settingsWindowController = SettingsWindowController(store: settings, learner: learner, notifications: notifications)
+        settingsWindowController = SettingsWindowController(store: settings, learner: learner, notifications: notifications, updates: updateChecker)
         settingsWindowController.activeSignals = { [weak self] in
             self?.contextMonitor.activeSignals ?? []
         }
@@ -85,6 +86,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         statusItemController.onStats = { [weak self] in
             self?.statsWindowController.show()
+        }
+        statusItemController.onCheckUpdates = { [weak self] in
+            self?.updateChecker.checkAndPresentAlert()
         }
         // Any menu-bar interaction tucks the auxiliary windows away.
         statusItemController.onStatusInteraction = { [weak self] in

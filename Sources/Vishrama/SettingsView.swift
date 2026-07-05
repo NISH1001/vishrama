@@ -6,6 +6,7 @@ struct SettingsView: View {
     @ObservedObject var store: SettingsStore
     @ObservedObject var learner: PatternLearner
     @ObservedObject var notifications: NotificationManager
+    @ObservedObject var updates: UpdateChecker
     /// Live signal readout, injected by the app.
     var activeSignals: () -> Set<VishramaCore.SignalKind> = { [] }
 
@@ -318,10 +319,31 @@ struct SettingsView: View {
                     HStack(spacing: 10) {
                         Text(Self.versionString)
                             .foregroundStyle(.secondary)
-                        Button("Check for Updates…") {
-                            NSWorkspace.shared.open(URL(string: "https://github.com/NISH1001/vishrama/releases/latest")!)
+                        switch updates.status {
+                        case .idle:
+                            Button("Check for Updates…") {
+                                Task { await updates.check() }
+                            }
+                            .controlSize(.small)
+                        case .checking:
+                            ProgressView()
+                                .controlSize(.small)
+                        case .upToDate:
+                            Text("up to date ✓")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        case .available(let tag, let url):
+                            Button("\(tag) available — download") {
+                                NSWorkspace.shared.open(url)
+                            }
+                            .controlSize(.small)
+                            .tint(.orange)
+                        case .failed:
+                            Button("Check failed — open releases") {
+                                NSWorkspace.shared.open(UpdateChecker.releasesPage)
+                            }
+                            .controlSize(.small)
                         }
-                        .controlSize(.small)
                     }
                 }
             }

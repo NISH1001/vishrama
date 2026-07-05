@@ -271,9 +271,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         onStats?()
     }
 
+    var onCheckUpdates: (() -> Void)?
+
     @objc private func checkUpdatesClicked() {
-        // Private repo → no anonymous version API; the releases page (with the
-        // running version in Settings for comparison) is the honest affordance.
-        NSWorkspace.shared.open(URL(string: "https://github.com/NISH1001/vishrama/releases/latest")!)
+        onCheckUpdates?()
     }
 }

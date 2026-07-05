@@ -9,12 +9,14 @@ final class SettingsWindowController {
     private let store: SettingsStore
     private let learner: PatternLearner
     private let notifications: NotificationManager
+    private let updates: UpdateChecker
     var activeSignals: () -> Set<VishramaCore.SignalKind> = { [] }
 
-    init(store: SettingsStore, learner: PatternLearner, notifications: NotificationManager) {
+    init(store: SettingsStore, learner: PatternLearner, notifications: NotificationManager, updates: UpdateChecker) {
         self.store = store
         self.learner = learner
         self.notifications = notifications
+        self.updates = updates
     }
 
     func show() {
@@ -28,7 +30,7 @@ final class SettingsWindowController {
             window.title = "Vishrama Settings"
             let signals = activeSignals
             window.contentViewController = NSHostingController(
-                rootView: SettingsView(store: store, learner: learner, notifications: notifications, activeSignals: signals))
+                rootView: SettingsView(store: store, learner: learner, notifications: notifications, updates: updates, activeSignals: signals))
             window.isReleasedWhenClosed = false
             window.center()
             self.window = window
