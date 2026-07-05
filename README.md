@@ -240,8 +240,9 @@ accumulate, gentle inferences follow — a grace period after your morning wake,
 softer breaks in your usual wind-down hours, day-span in Stats.
 
 Deliberately *not* on the roadmap: guided breathing / meditation features — that's
-[mastishka](https://github.com/NISH1001/mastishka)'s job (vishrama hands sits over
-via the Mastishka handshake instead). vishrama reminds you to rest; mastishka is
+[mastishka](https://github.com/NISH1001/mastishka)'s job, and its **macOS app** already
+handles it: vishrama hands sits over via the Mastishka handshake (auto-started, sized
+to the break, credited on completion). vishrama reminds you to rest; mastishka is
 where you practice.
 
 ## License
