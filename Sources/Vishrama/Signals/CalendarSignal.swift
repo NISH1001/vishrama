@@ -11,6 +11,8 @@ final class CalendarSignal: SignalProvider {
     private(set) var authorized = false
     /// Start of the next upcoming busy event (for meeting-gap early breaks).
     private(set) var nextBusyStart: Date?
+    /// End of the busy event happening right now (holds nudges near the end).
+    private(set) var currentBusyEnd: Date?
 
     private let store = EKEventStore()
     private var timer: Timer?
@@ -75,6 +77,7 @@ final class CalendarSignal: SignalProvider {
         guard authorized else {
             isActive = false
             nextBusyStart = nil
+            currentBusyEnd = nil
             return
         }
         let now = Date()
@@ -91,5 +94,7 @@ final class CalendarSignal: SignalProvider {
         }
         isActive = busy.contains { $0.startDate <= now && now < $0.endDate }
         nextBusyStart = busy.compactMap(\.startDate).filter { $0 > now }.min()
+        currentBusyEnd = busy.filter { $0.startDate <= now && now < $0.endDate }
+            .compactMap(\.endDate).max()
     }
 }

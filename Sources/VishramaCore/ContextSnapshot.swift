@@ -16,16 +16,20 @@ public struct ContextSnapshot: Sendable, Equatable {
     public var frontmostApp: String?
     /// Start of the next busy calendar event, if the calendar signal knows one.
     public var nextBusyStart: Date?
+    /// End of the busy event happening right now, if the calendar knows one.
+    public var currentBusyEnd: Date?
 
     public init(
         activeSignals: Set<SignalKind> = [],
         idleSeconds: TimeInterval = 0,
         frontmostApp: String? = nil,
-        nextBusyStart: Date? = nil
+        nextBusyStart: Date? = nil,
+        currentBusyEnd: Date? = nil
     ) {
         self.activeSignals = activeSignals
         self.idleSeconds = idleSeconds
         self.frontmostApp = frontmostApp
         self.nextBusyStart = nextBusyStart
+        self.currentBusyEnd = currentBusyEnd
     }
 }

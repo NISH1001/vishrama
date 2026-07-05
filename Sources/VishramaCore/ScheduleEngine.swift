@@ -28,6 +28,8 @@ public final class ScheduleEngine {
     private var quietUntil: Date?
     /// The breakDue we already sent a heads-up for (one warning per break).
     private var preBreakWarnedFor: Date?
+    /// Last in-meeting eye reminder (anchors the repeat cadence).
+    private var lastMicroNudge: Date?
     /// When the current work period began. Idle time is clamped to this so
     /// hands-off time DURING a break can't leak into the fresh interval as
     /// phantom "away" time (which double-credited natural breaks).
@@ -104,6 +106,7 @@ public final class ScheduleEngine {
             if now >= breakDue {
                 let kind = pendingBreakKind(completedShortBreaks: completed)
                 if !context.activeSignals.isEmpty {
+                    lastMicroNudge = nil
                     state = .pendingSuppressed(dueSince: breakDue, clearSince: nil, completedShortBreaks: completed)
                     return [.updateStatus(.suppressed(overdue: now.timeIntervalSince(breakDue))), .log(.suppressedStart, kind)]
                 }
@@ -169,6 +172,20 @@ public final class ScheduleEngine {
                 // (Re)entered a busy context: any grace countdown restarts.
                 if clearSince != nil {
                     state = .pendingSuppressed(dueSince: dueSince, clearSince: nil, completedShortBreaks: completed)
+                }
+                // Long meeting: whisper the 20-20-20 eye reminder — but never
+                // while the screen is shared, and not when the meeting is about
+                // to end anyway (the real break follows shortly after).
+                if config.microNudgeInterval > 0,
+                   !context.activeSignals.contains(.screenShare) {
+                    let anchor = lastMicroNudge ?? dueSince
+                    let endsSoon = context.currentBusyEnd.map {
+                        $0 > now && $0.timeIntervalSince(now) < 5 * 60
+                    } ?? false
+                    if now.timeIntervalSince(anchor) >= config.microNudgeInterval, !endsSoon {
+                        lastMicroNudge = now
+                        return [.updateStatus(.suppressed(overdue: overdue)), .notifyMicroBreak, .log(.microNudge, nil)]
+                    }
                 }
                 return [.updateStatus(.suppressed(overdue: overdue))]
             }

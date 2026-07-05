@@ -344,7 +344,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             activeSignals: signals,
             idleSeconds: IdleMonitor.systemIdleSeconds(),
             frontmostApp: frontmost,
-            nextBusyStart: calendarSignal?.nextBusyStart
+            nextBusyStart: calendarSignal?.nextBusyStart,
+            currentBusyEnd: calendarSignal?.currentBusyEnd
         )
         apply(engine.tick(now: Date(), context: context))
     }
@@ -373,6 +374,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let prompt = settings.prompts(for: kind).first ?? "Take a pause"
                 notifications.notifyBreakDue(kind: kind, prompt: prompt)
                 Self.log.notice("flow-mode notification: \(kind.rawValue, privacy: .public)")
+            case .notifyMicroBreak:
+                notifications.notifyMicroBreak()
+                Self.log.notice("in-meeting eye nudge sent")
             case .notifyPreBreak(let kind, let lead):
                 notifications.notifyPreBreak(kind: kind, lead: lead)
                 Self.log.notice("pre-break heads-up: \(kind.rawValue, privacy: .public) in \(Int(lead))s")

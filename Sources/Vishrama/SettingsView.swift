@@ -104,6 +104,15 @@ struct SettingsView: View {
                     .font(.caption)
             }
 
+            Section {
+                Picker("Eye reminders in long meetings", selection: $store.microNudgeMin) {
+                    Text("Off").tag(0)
+                    Text("Every 15 min").tag(15)
+                    Text("Every 20 min").tag(20)
+                    Text("Every 30 min").tag(30)
+                }
+            }
+
             Section("Treat these apps as presenting (bundle IDs, one per line)") {
                 PromptsEditor(lines: $store.presentingApps)
                 Text("Example: com.apple.iWork.Keynote")

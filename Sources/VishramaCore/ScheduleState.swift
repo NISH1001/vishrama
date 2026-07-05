@@ -22,6 +22,8 @@ public enum Effect: Equatable, Sendable {
     case notifyPreBreak(BreakKind, TimeInterval)
     /// A meeting starts soon — the break was pulled forward into the gap.
     case showOverlayForMeetingGap(BreakKind)
+    /// Long meeting: whisper a 20-20-20 eye reminder (never an overlay).
+    case notifyMicroBreak
     /// Record a behavior event; the shell enriches it with timestamp/app/signals.
     case log(BreakEventKind, BreakKind?)
 }

@@ -169,6 +169,7 @@ struct HistoryView: View {
         case .paused: "🥀"
         case .resumed: "🌻"
         case .slept: "💤"
+        case .microNudge: "👁"
         }
     }
 
@@ -194,6 +195,7 @@ struct HistoryView: View {
         case .slept:
             let span = event.durationSec.map(Self.sleepDuration) ?? "a while"
             return "Slept — \(span)"
+        case .microNudge: return "Eye reminder (in meeting)"
         }
     }
 

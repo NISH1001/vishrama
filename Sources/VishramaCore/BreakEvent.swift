@@ -13,6 +13,7 @@ public enum BreakEventKind: String, Codable, Sendable, Equatable {
     case paused         // user paused from the menu bar
     case resumed
     case slept          // hardware sleep (lid closed); logged on wake with duration
+    case microNudge     // in-meeting eye reminder whispered
     case naturalBreak   // long idle counted as a break
 }
 

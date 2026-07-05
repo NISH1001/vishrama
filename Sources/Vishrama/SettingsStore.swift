@@ -30,6 +30,10 @@ final class SettingsStore: ObservableObject {
     @Published var preBreakWarnSec: Int {
         didSet { defaults.set(preBreakWarnSec, forKey: "preBreakWarnSec") }
     }
+    /// In-meeting eye reminder cadence, minutes (0 = off).
+    @Published var microNudgeMin: Int {
+        didSet { defaults.set(microNudgeMin, forKey: "microNudgeMin") }
+    }
 
     enum PanelSize: String, CaseIterable {
         case compact, comfortable, large
@@ -150,6 +154,7 @@ final class SettingsStore: ObservableObject {
         idlePauseMin = defaults.object(forKey: "idlePauseMin") as? Int ?? 2
         postponeMin = defaults.object(forKey: "postponeMin") as? Int ?? 5
         preBreakWarnSec = defaults.object(forKey: "preBreakWarnSec") as? Int ?? 60
+        microNudgeMin = defaults.object(forKey: "microNudgeMin") as? Int ?? 20
         panelSize = defaults.string(forKey: "panelSize").flatMap(PanelSize.init) ?? .comfortable
         mastishkaEnabled = defaults.object(forKey: "mastishkaEnabled") as? Bool ?? true
         mastishkaPractice = defaults.string(forKey: "mastishkaPractice") ?? "anapana"
@@ -181,6 +186,7 @@ final class SettingsStore: ObservableObject {
         var postponeMin: Int
         // Optional so settings.json written by older versions still imports.
         var preBreakWarnSec: Int?
+        var microNudgeMin: Int?
         var mastishkaEnabled: Bool?
         var mastishkaPractice: String?
         var shortPrompts: [String]
@@ -197,7 +203,7 @@ final class SettingsStore: ObservableObject {
             shortIntervalMin: shortIntervalMin, shortDurationMin: shortDurationMin,
             longDurationMin: longDurationMin, longBreakEvery: longBreakEvery,
             idlePauseMin: idlePauseMin, postponeMin: postponeMin,
-            preBreakWarnSec: preBreakWarnSec,
+            preBreakWarnSec: preBreakWarnSec, microNudgeMin: microNudgeMin,
             mastishkaEnabled: mastishkaEnabled, mastishkaPractice: mastishkaPractice,
             shortPrompts: shortPrompts, longPrompts: longPrompts,
             signalCameraMic: signalCameraMic, signalScreenShare: signalScreenShare,
@@ -227,6 +233,7 @@ final class SettingsStore: ObservableObject {
         idlePauseMin = snapshot.idlePauseMin
         postponeMin = snapshot.postponeMin
         if let warn = snapshot.preBreakWarnSec { preBreakWarnSec = warn }
+        if let nudge = snapshot.microNudgeMin { microNudgeMin = nudge }
         if let enabled = snapshot.mastishkaEnabled { mastishkaEnabled = enabled }
         if let practice = snapshot.mastishkaPractice { mastishkaPractice = practice }
         shortPrompts = snapshot.shortPrompts
@@ -248,7 +255,8 @@ final class SettingsStore: ObservableObject {
                 longBreakEvery: longBreakEvery,
                 idlePauseThreshold: 20,
                 postponeDelay: TimeInterval(postponeMin),
-                preBreakWarning: preBreakWarnSec > 0 ? 5 : 0
+                preBreakWarning: preBreakWarnSec > 0 ? 5 : 0,
+                microNudgeInterval: microNudgeMin > 0 ? 15 : 0
             )
         }
         return BreakConfiguration(
@@ -258,7 +266,8 @@ final class SettingsStore: ObservableObject {
             longBreakEvery: longBreakEvery,
             idlePauseThreshold: TimeInterval(idlePauseMin * 60),
             postponeDelay: TimeInterval(postponeMin * 60),
-            preBreakWarning: TimeInterval(preBreakWarnSec)
+            preBreakWarning: TimeInterval(preBreakWarnSec),
+            microNudgeInterval: TimeInterval(microNudgeMin * 60)
         )
     }
 

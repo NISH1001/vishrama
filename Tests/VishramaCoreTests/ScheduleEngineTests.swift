@@ -728,3 +728,61 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(effects.contains { if case .updateStatus(.working) = $0 { return true } else { return false } })
     }
 }
+
+@Suite struct MicroNudges {
+    private func engineWithNudges(_ interval: TimeInterval = 20 * 60) -> ScheduleEngine {
+        ScheduleEngine(config: BreakConfiguration(microNudgeInterval: interval), startAt: t0)
+    }
+    private let meeting = ContextSnapshot(activeSignals: [.cameraMic])
+
+    @Test func nudgeAfterSuppressionReachesInterval() {
+        let engine = engineWithNudges()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: meeting)
+        let early = engine.tick(now: due.addingTimeInterval(19 * 60), context: meeting)
+        #expect(!early.contains(.notifyMicroBreak))
+        let effects = engine.tick(now: due.addingTimeInterval(20 * 60), context: meeting)
+        #expect(effects.contains(.notifyMicroBreak))
+        #expect(effects.contains(.log(.microNudge, nil)))
+    }
+
+    @Test func nudgeRepeatsAtEachInterval() {
+        let engine = engineWithNudges()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: meeting)
+        _ = engine.tick(now: due.addingTimeInterval(20 * 60), context: meeting)
+        let tooSoon = engine.tick(now: due.addingTimeInterval(30 * 60), context: meeting)
+        #expect(!tooSoon.contains(.notifyMicroBreak))
+        let second = engine.tick(now: due.addingTimeInterval(40 * 60), context: meeting)
+        #expect(second.contains(.notifyMicroBreak))
+    }
+
+    @Test func silentWhileScreenSharing() {
+        let engine = engineWithNudges()
+        let due = t0.addingTimeInterval(25 * 60)
+        let sharing = ContextSnapshot(activeSignals: [.cameraMic, .screenShare])
+        _ = engine.tick(now: due, context: sharing)
+        let effects = engine.tick(now: due.addingTimeInterval(20 * 60), context: sharing)
+        #expect(!effects.contains(.notifyMicroBreak))
+    }
+
+    @Test func heldWhenMeetingEndsSoon() {
+        let engine = engineWithNudges()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: meeting)
+        let at = due.addingTimeInterval(20 * 60)
+        let endingSoon = ContextSnapshot(
+            activeSignals: [.cameraMic],
+            currentBusyEnd: at.addingTimeInterval(3 * 60))
+        let effects = engine.tick(now: at, context: endingSoon)
+        #expect(!effects.contains(.notifyMicroBreak))
+    }
+
+    @Test func zeroIntervalDisablesNudges() {
+        let engine = engineWithNudges(0)
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: meeting)
+        let effects = engine.tick(now: due.addingTimeInterval(60 * 60), context: meeting)
+        #expect(!effects.contains(.notifyMicroBreak))
+    }
+}

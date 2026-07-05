@@ -51,6 +51,16 @@ final class NotificationManager: NSObject, ObservableObject, UNUserNotificationC
         center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
+    /// In-meeting 20-20-20 whisper — no sound, no action, no overlay.
+    func notifyMicroBreak() {
+        guard authorized else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Rest your eyes 👁"
+        content.body = "Long meeting — 20 seconds on something distant."
+        content.sound = nil
+        center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+
     /// Heads-up shortly before a break takes the screen.
     func notifyPreBreak(kind: BreakKind, lead: TimeInterval) {
         guard authorized else { return }
