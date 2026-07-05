@@ -13,6 +13,7 @@ final class OverlayController {
     let model = BreakViewModel()
     var onSkip: (() -> Void)?
     var onPostpone: (() -> Void)?
+    var onDone: (() -> Void)?
     var onSitWithMastishka: (() -> Void)?
 
     private var windows: [OverlayWindow] = []
@@ -26,6 +27,7 @@ final class OverlayController {
         guard windows.isEmpty else { return }
         model.kind = kind
         model.remaining = remaining
+        model.duration = remaining
         if let promptOverride {
             model.prompt = promptOverride
         } else {
@@ -55,6 +57,7 @@ final class OverlayController {
                 model: model,
                 onSkip: { [weak self] in self?.onSkip?() },
                 onPostpone: { [weak self] in self?.onPostpone?() },
+                onDone: { [weak self] in self?.onDone?() },
                 onSitWithMastishka: { [weak self] in self?.onSitWithMastishka?() }
             ))
             window.setFrame(screen.frame, display: true)

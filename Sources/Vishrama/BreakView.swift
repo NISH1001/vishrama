@@ -6,6 +6,11 @@ final class BreakViewModel: ObservableObject {
     @Published var kind: BreakKind = .short
     @Published var remaining: TimeInterval = 0
     @Published var prompt: String = ""
+    /// Full length of this break — lets the view know when half has elapsed.
+    @Published var duration: TimeInterval = 0
+
+    /// "Done" earns its place after a quarter of the break has been rested.
+    var doneAvailable: Bool { duration > 0 && remaining <= duration * 0.75 }
 
     var title: String {
         kind == .short ? "Eye Break" : "Standup Break"
@@ -16,6 +21,8 @@ struct BreakView: View {
     @ObservedObject var model: BreakViewModel
     let onSkip: () -> Void
     let onPostpone: () -> Void
+    /// Shown after half the break: full credit, back to work early.
+    var onDone: (() -> Void)?
     /// Long breaks only: hand this break to Mastishka for a proper sit.
     var onSitWithMastishka: (() -> Void)?
 
@@ -44,6 +51,14 @@ struct BreakView: View {
                     .foregroundStyle(.white.opacity(0.85))
                     .padding(.top, 8)
                 HStack(spacing: 20) {
+                    if model.doneAvailable, let onDone {
+                        Button(action: onDone) {
+                            Text("Done — back to work")
+                                .padding(.horizontal, 18).padding(.vertical, 8)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.white.opacity(0.25))
+                    }
                     Button(action: onPostpone) {
                         Text("Postpone 5 min")
                             .padding(.horizontal, 18).padding(.vertical, 8)

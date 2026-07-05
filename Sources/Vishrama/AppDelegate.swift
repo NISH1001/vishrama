@@ -111,6 +111,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.apply(self.engine.postpone(now: Date()))
         }
+        overlayController.onDone = { [weak self] in
+            guard let self else { return }
+            self.apply(self.engine.finishBreak(now: Date()))
+        }
         updateMastishkaHook()
 
         notifications.setup()
