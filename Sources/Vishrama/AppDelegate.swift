@@ -288,8 +288,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the break was honored, mark it completed (not skipped).
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls where url.scheme == "vishrama" && url.host == "sitCompleted" {
-            apply(engine.finishBreak(now: Date()))
-            Self.log.notice("mastishka sit completed; break credited")
+            let effects = engine.finishBreak(now: Date())
+            apply(effects)
+            if effects.isEmpty {
+                Self.log.notice("sitCompleted callback received; no active break — ignored")
+            } else {
+                Self.log.notice("mastishka sit completed; break credited")
+            }
         }
     }
 
