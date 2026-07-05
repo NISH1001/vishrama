@@ -8,11 +8,13 @@ final class SettingsWindowController {
     private var window: NSWindow?
     private let store: SettingsStore
     private let learner: PatternLearner
+    private let notifications: NotificationManager
     var activeSignals: () -> Set<VishramaCore.SignalKind> = { [] }
 
-    init(store: SettingsStore, learner: PatternLearner) {
+    init(store: SettingsStore, learner: PatternLearner, notifications: NotificationManager) {
         self.store = store
         self.learner = learner
+        self.notifications = notifications
     }
 
     func show() {
@@ -26,11 +28,12 @@ final class SettingsWindowController {
             window.title = "Vishrama Settings"
             let signals = activeSignals
             window.contentViewController = NSHostingController(
-                rootView: SettingsView(store: store, learner: learner, activeSignals: signals))
+                rootView: SettingsView(store: store, learner: learner, notifications: notifications, activeSignals: signals))
             window.isReleasedWhenClosed = false
             window.center()
             self.window = window
         }
+        notifications.refreshStatus()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }

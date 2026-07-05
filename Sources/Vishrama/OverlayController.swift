@@ -22,13 +22,17 @@ final class OverlayController {
     var promptsProvider: ((BreakKind) -> [String])?
     private var promptIndex = 0
 
-    func show(kind: BreakKind, remaining: TimeInterval) {
+    func show(kind: BreakKind, remaining: TimeInterval, promptOverride: String? = nil) {
         guard windows.isEmpty else { return }
         model.kind = kind
         model.remaining = remaining
-        let prompts = promptsProvider?(kind) ?? ["Take a breath"]
-        model.prompt = prompts[promptIndex % prompts.count]
-        promptIndex += 1
+        if let promptOverride {
+            model.prompt = promptOverride
+        } else {
+            let prompts = promptsProvider?(kind) ?? ["Take a breath"]
+            model.prompt = prompts[promptIndex % prompts.count]
+            promptIndex += 1
+        }
 
         for screen in NSScreen.screens {
             let window = OverlayWindow(

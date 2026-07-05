@@ -582,3 +582,105 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(engine.systemSlept(for: 3600, now: t0.addingTimeInterval(2 * 3600)) == [])
     }
 }
+
+@Suite struct SnapshotRestore {
+    @Test func snapshotCarriesRemainingCycleAndBackoff() {
+        let engine = makeEngine(longBreakEvery: 2)
+        // One completed break (cycle=1), one skip (backoff=1), 10 min into work.
+        var cursor = completeBreak(engine, from: t0.addingTimeInterval(25 * 60), duration: 5 * 60)
+        _ = engine.tick(now: cursor.addingTimeInterval(25 * 60), context: ContextSnapshot())
+        _ = engine.skip(now: cursor.addingTimeInterval(25 * 60))
+        cursor = cursor.addingTimeInterval(25 * 60)
+        let at = cursor.addingTimeInterval(60)
+        _ = engine.tick(now: at, context: ContextSnapshot())
+
+        let snapshot = engine.snapshot(now: at)
+        let restored = ScheduleEngine(config: engine.config, startAt: at, restoring: snapshot)
+        // Remaining continues where it left off (skip backoff was 5 min; 1 min elapsed).
+        let effects = restored.tick(now: at, context: ContextSnapshot())
+        #expect(effects.contains(.updateStatus(.working(remaining: 4 * 60.0))))
+        #expect(restored.backoffLevel == 1)
+        // Cycle position survives: next completed break is the second → then long.
+        _ = restored.tick(now: at.addingTimeInterval(4 * 60), context: ContextSnapshot())
+        _ = restored.tick(now: at.addingTimeInterval(9 * 60), context: ContextSnapshot())  // completes
+        let due = at.addingTimeInterval(9 * 60 + 25 * 60)
+        #expect(restored.tick(now: due, context: ContextSnapshot()).contains(.showOverlay(.long)))
+    }
+
+    @Test func restoreAfterShortDowntimeSubtractsTheGap() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let saved = engine.snapshot(now: t0.addingTimeInterval(60))   // 24 min left
+        // Relaunched 2 minutes later.
+        let later = t0.addingTimeInterval(3 * 60)
+        let restored = ScheduleEngine(config: engine.config, startAt: later, restoring: saved)
+        let effects = restored.tick(now: later, context: ContextSnapshot())
+        #expect(effects.contains(.updateStatus(.working(remaining: 22 * 60.0))))
+    }
+
+    @Test func restoreAfterLongDowntimeStartsFreshButKeepsCycle() {
+        let engine = makeEngine(longBreakEvery: 1)
+        let cursor = completeBreak(engine, from: t0.addingTimeInterval(25 * 60), duration: 5 * 60)
+        let saved = engine.snapshot(now: cursor.addingTimeInterval(60))
+        // Relaunched 2 hours later: fresh interval, but cycle position kept.
+        let later = cursor.addingTimeInterval(2 * 3600)
+        let restored = ScheduleEngine(config: engine.config, startAt: later, restoring: saved)
+        let effects = restored.tick(now: later, context: ContextSnapshot())
+        #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0))))
+        let due = later.addingTimeInterval(25 * 60)
+        #expect(restored.tick(now: due, context: ContextSnapshot()).contains(.showOverlay(.long)))
+    }
+
+    @Test func snapshotDuringBreakRestoresAsFreshWork() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let saved = engine.snapshot(now: due.addingTimeInterval(60))
+        let restored = ScheduleEngine(config: engine.config, startAt: due, restoring: saved)
+        // Mid-break snapshots don't try to resurrect the overlay.
+        let effects = restored.tick(now: due.addingTimeInterval(2 * 60), context: ContextSnapshot())
+        #expect(effects.contains(.updateStatus(.working(remaining: 23 * 60.0))))
+    }
+}
+
+@Suite struct MeetingGap {
+    @Test func meetingSoonPullsTheBreakForward() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        // 16 min in (>60% of 25), meeting starts in 8 min (≤ 5min break + 5 grace).
+        let now = t0.addingTimeInterval(16 * 60)
+        let effects = engine.tick(now: now, context: ContextSnapshot(
+            nextBusyStart: now.addingTimeInterval(8 * 60)))
+        #expect(effects.contains(.showOverlayForMeetingGap(.short)))
+        #expect(effects.contains(.log(.fired, .short)))
+    }
+
+    @Test func noEarlyBreakWhenBarelyIntoTheInterval() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let now = t0.addingTimeInterval(5 * 60)   // only 20% in
+        let effects = engine.tick(now: now, context: ContextSnapshot(
+            nextBusyStart: now.addingTimeInterval(8 * 60)))
+        #expect(!effects.contains(.showOverlayForMeetingGap(.short)))
+        #expect(effects.contains(.updateStatus(.working(remaining: 20 * 60.0))))
+    }
+
+    @Test func noEarlyBreakWhenMeetingIsFarAway() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let now = t0.addingTimeInterval(20 * 60)
+        let effects = engine.tick(now: now, context: ContextSnapshot(
+            nextBusyStart: now.addingTimeInterval(45 * 60)))
+        #expect(!effects.contains(.showOverlayForMeetingGap(.short)))
+    }
+
+    @Test func noEarlyBreakWhileAlreadyInAMeeting() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        let now = t0.addingTimeInterval(20 * 60)
+        let effects = engine.tick(now: now, context: ContextSnapshot(
+            activeSignals: [.cameraMic],
+            nextBusyStart: now.addingTimeInterval(8 * 60)))
+        #expect(!effects.contains(.showOverlayForMeetingGap(.short)))
+    }
+}

@@ -9,6 +9,8 @@ final class CalendarSignal: SignalProvider {
     let kind = SignalKind.calendarBusy
     private(set) var isActive = false
     private(set) var authorized = false
+    /// Start of the next upcoming busy event (for meeting-gap early breaks).
+    private(set) var nextBusyStart: Date?
 
     private let store = EKEventStore()
     private var timer: Timer?
@@ -72,19 +74,22 @@ final class CalendarSignal: SignalProvider {
     private func poll() {
         guard authorized else {
             isActive = false
+            nextBusyStart = nil
             return
         }
         let now = Date()
-        isActive = cachedEvents.contains { event in
+        let busy = cachedEvents.filter { event in
             guard !event.isAllDay,
                   event.availability != .free,
-                  let start = event.startDate, let end = event.endDate
+                  event.startDate != nil, event.endDate != nil
             else { return false }
             // Declined events don't make you busy.
             if event.attendees?.first(where: { $0.isCurrentUser })?.participantStatus == .declined {
                 return false
             }
-            return start <= now && now < end
+            return true
         }
+        isActive = busy.contains { $0.startDate <= now && now < $0.endDate }
+        nextBusyStart = busy.compactMap(\.startDate).filter { $0 > now }.min()
     }
 }

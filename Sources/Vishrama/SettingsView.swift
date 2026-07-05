@@ -1,9 +1,11 @@
 import SwiftUI
+import UserNotifications
 import VishramaCore
 
 struct SettingsView: View {
     @ObservedObject var store: SettingsStore
     @ObservedObject var learner: PatternLearner
+    @ObservedObject var notifications: NotificationManager
     /// Live signal readout, injected by the app.
     var activeSignals: () -> Set<VishramaCore.SignalKind> = { [] }
 
@@ -186,6 +188,29 @@ struct SettingsView: View {
         Form {
             Section {
                 Toggle("Launch Vishrama at login", isOn: $store.launchAtLogin)
+                LabeledContent("Notifications") {
+                    switch notifications.authStatus {
+                    case .authorized, .provisional:
+                        Text("allowed ✓")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    case .denied:
+                        HStack(spacing: 8) {
+                            Text("denied — heads-up & flow mode won't be seen")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                            Button("Fix…") {
+                                NSWorkspace.shared.open(URL(string:
+                                    "x-apple.systempreferences:com.apple.preference.notifications")!)
+                            }
+                            .controlSize(.small)
+                        }
+                    default:
+                        Text("not decided yet")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Picker("Panel size", selection: $store.panelSize) {
                     Text("Compact").tag(SettingsStore.PanelSize.compact)
                     Text("Comfortable").tag(SettingsStore.PanelSize.comfortable)

@@ -4,13 +4,25 @@ import VishramaCore
 
 /// Gentle notifications used in flow mode instead of the overlay.
 @MainActor
-final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+final class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     nonisolated static let takeBreakAction = "dev.nishparadox.vishrama.takeBreak"
     nonisolated static let categoryID = "dev.nishparadox.vishrama.breakDue"
 
     var onTakeBreak: (() -> Void)?
     private let center = UNUserNotificationCenter.current()
     private var authorized = false
+    /// For the Settings truth line: are our notifications actually visible?
+    @Published private(set) var authStatus: UNAuthorizationStatus = .notDetermined
+
+    func refreshStatus() {
+        center.getNotificationSettings { [weak self] settings in
+            let status = settings.authorizationStatus
+            Task { @MainActor in
+                self?.authStatus = status
+                self?.authorized = status == .authorized || status == .provisional
+            }
+        }
+    }
 
     func setup() {
         center.delegate = self
@@ -21,6 +33,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         center.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, error in
             Task { @MainActor in
                 self?.authorized = granted
+                self?.refreshStatus()
                 if let error {
                     AppDelegate.log.error("notification auth failed: \(error)")
                 }

@@ -1,5 +1,15 @@
 import Foundation
 
+/// What survives a relaunch or a settings-driven engine rebuild: where you
+/// are in the work interval, the long-break cycle, and layer-1 adaptivity.
+public struct ScheduleSnapshot: Codable, Equatable, Sendable {
+    public var remainingWork: TimeInterval
+    public var completedShortBreaks: Int
+    public var backoffLevel: Int
+    public var quietUntil: Date?
+    public var savedAt: Date
+}
+
 /// Pure schedule state machine, driven at 1 Hz by the shell.
 /// All time comes in through parameters — fully deterministic and testable.
 public final class ScheduleEngine {
@@ -19,9 +29,56 @@ public final class ScheduleEngine {
     /// The breakDue we already sent a heads-up for (one warning per break).
     private var preBreakWarnedFor: Date?
 
-    public init(config: BreakConfiguration = BreakConfiguration(), startAt now: Date) {
+    public init(config: BreakConfiguration = BreakConfiguration(), startAt now: Date, restoring snapshot: ScheduleSnapshot? = nil) {
         self.config = config
-        self.state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: 0)
+        guard let snapshot else {
+            self.state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: 0)
+            return
+        }
+        // Carry the cycle and adaptivity over; expired flow-quiet stays expired.
+        backoffLevel = snapshot.backoffLevel
+        quietUntil = snapshot.quietUntil.flatMap { $0 > now ? $0 : nil }
+        let gap = max(0, now.timeIntervalSince(snapshot.savedAt))
+        let remaining: TimeInterval
+        if gap > 10 * 60 {
+            // Long downtime: a fresh interval, but the cycle position survives.
+            remaining = config.shortInterval
+        } else {
+            // Brief relaunch: the countdown continues, downtime counted as worked.
+            remaining = min(max(30, snapshot.remainingWork - gap), config.shortInterval)
+        }
+        self.state = .working(breakDue: now.addingTimeInterval(remaining), completedShortBreaks: snapshot.completedShortBreaks)
+    }
+
+    /// Capture what should survive a rebuild/relaunch. A snapshot taken
+    /// mid-break restores as fresh work — overlays are never resurrected.
+    public func snapshot(now: Date) -> ScheduleSnapshot {
+        let remaining: TimeInterval
+        let completed: Int
+        switch state {
+        case .working(let breakDue, let c):
+            remaining = max(0, breakDue.timeIntervalSince(now))
+            completed = c
+        case .idlePaused(let r, let c, _):
+            remaining = r
+            completed = c
+        case .manuallyPaused(let r, let c):
+            remaining = r
+            completed = c
+        case .breakActive(_, _, let c):
+            remaining = scaledInterval
+            completed = c
+        case .pendingSuppressed(_, _, let c):
+            remaining = 0
+            completed = c
+        }
+        return ScheduleSnapshot(
+            remainingWork: remaining,
+            completedShortBreaks: completed,
+            backoffLevel: backoffLevel,
+            quietUntil: quietUntil,
+            savedAt: now
+        )
     }
 
     public func tick(now: Date, context: ContextSnapshot) -> [Effect] {
@@ -57,6 +114,28 @@ public final class ScheduleEngine {
                 state = .breakActive(kind: kind, endsAt: now.addingTimeInterval(duration), completedShortBreaks: completed)
                 return [.showOverlay(kind), .updateStatus(.onBreak(kind: kind, remaining: duration)), .log(.fired, kind)]
             }
+            // Meeting-gap: most of the interval is done and a busy event starts
+            // soon — take the break NOW so it fits before the meeting, instead
+            // of it landing mid-meeting and being suppressed for an hour.
+            if let nextBusy = context.nextBusyStart,
+               context.activeSignals.isEmpty,
+               quietUntil == nil || now >= quietUntil! {
+                let kind = pendingBreakKind(completedShortBreaks: completed)
+                let remaining = breakDue.timeIntervalSince(now)
+                let untilMeeting = nextBusy.timeIntervalSince(now)
+                if remaining <= 0.4 * config.shortInterval,
+                   untilMeeting > 0,
+                   untilMeeting <= config.duration(of: kind) + 5 * 60 {
+                    let duration = config.duration(of: kind)
+                    state = .breakActive(kind: kind, endsAt: now.addingTimeInterval(duration), completedShortBreaks: completed)
+                    return [
+                        .showOverlayForMeetingGap(kind),
+                        .updateStatus(.onBreak(kind: kind, remaining: duration)),
+                        .log(.fired, kind),
+                    ]
+                }
+            }
+
             // Gentle heads-up shortly before the break — skipped in meetings
             // (the break would be suppressed) and in flow quiet (it notifies anyway).
             if config.preBreakWarning > 0,

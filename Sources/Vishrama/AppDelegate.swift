@@ -24,7 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         settings = SettingsStore()
-        engine = ScheduleEngine(config: settings.configuration, startAt: Date())
+        engine = ScheduleEngine(config: settings.configuration, startAt: Date(), restoring: Self.loadSnapshot())
         remakeEventLog()
         // Ensure the config mirror exists from day one, not only after a change.
         settings.writeMirroredSettings()
@@ -34,19 +34,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let learnerTimer = Timer(timeInterval: 6 * 3600, target: self, selector: #selector(recomputePatterns), userInfo: nil, repeats: true)
         RunLoop.main.add(learnerTimer, forMode: .common)
         self.learnerTimer = learnerTimer
-        settingsWindowController = SettingsWindowController(store: settings, learner: learner)
+        settingsWindowController = SettingsWindowController(store: settings, learner: learner, notifications: notifications)
         settingsWindowController.activeSignals = { [weak self] in
             self?.contextMonitor.activeSignals ?? []
         }
         rebuildSignalProviders()
 
-        // Settings edits rebuild the engine (countdown restarts with new values).
+        // Settings edits touch the engine ONLY when the schedule config actually
+        // changed — and even then the running countdown/cycle/backoff carry over.
         settingsObserver = settings.objectWillChange
             .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
             .sink { [weak self] _ in
                 Task { @MainActor in
                     guard let self else { return }
-                    self.engine = ScheduleEngine(config: self.settings.configuration, startAt: Date())
+                    let newConfig = self.settings.configuration
+                    if newConfig != self.engine.config {
+                        let now = Date()
+                        self.engine = ScheduleEngine(config: newConfig, startAt: now, restoring: self.engine.snapshot(now: now))
+                        Self.log.notice("schedule config changed; engine rebuilt with state carried over")
+                    }
                     self.rebuildSignalProviders()
                     self.statusItemController.statusModel.panelScale = self.settings.panelSize.scale
                     self.updateMastishkaHook()
@@ -54,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         self.remakeEventLog()
                     }
                     self.settings.writeMirroredSettings()
-                    Self.log.notice("settings changed; engine rebuilt")
+                    self.saveSnapshot()
                 }
             }
 
@@ -173,6 +179,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Self.log.notice("event log at \(dir.path, privacy: .public)")
     }
 
+    /// Kept for meeting-gap lookahead (nextBusyStart) beyond the busy/free bit.
+    private var calendarSignal: CalendarSignal?
+
     private func rebuildSignalProviders() {
         var providers: [SignalProvider] = []
         if settings.signalCameraMic {
@@ -187,7 +196,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             providers.append(signal)
         }
         if settings.signalCalendar {
-            providers.append(CalendarSignal())
+            let calendar = CalendarSignal()
+            calendarSignal = calendar
+            providers.append(calendar)
+        } else {
+            calendarSignal = nil
         }
         contextMonitor.setProviders(providers)
     }
@@ -196,6 +209,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func recomputePatterns() {
         learner.recompute(from: eventLog)
+    }
+
+    // MARK: - Schedule persistence (local — schedules are per-device)
+
+    private static let snapshotKey = "scheduleSnapshot"
+
+    static func loadSnapshot() -> ScheduleSnapshot? {
+        guard let data = UserDefaults.standard.data(forKey: snapshotKey) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(ScheduleSnapshot.self, from: data)
+    }
+
+    private func saveSnapshot() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let data = try? encoder.encode(engine.snapshot(now: Date())) {
+            UserDefaults.standard.set(data, forKey: Self.snapshotKey)
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        saveSnapshot()
     }
 
     private var sleepBegan: Date?
@@ -270,7 +306,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItemController.statusModel.todayLine = parts.joined(separator: " · ")
     }
 
+    private var ticksSinceSave = 0
+
     @objc private func timerFired() {
+        // Survive crashes/reboots too, not just clean quits.
+        ticksSinceSave += 1
+        if ticksSinceSave >= 30 {
+            ticksSinceSave = 0
+            saveSnapshot()
+        }
         let signals = contextMonitor.activeSignals
         if signals != lastSignals {
             Self.log.notice("signals changed: [\(signals.map(\.rawValue).sorted().joined(separator: ","), privacy: .public)]")
@@ -286,7 +330,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let context = ContextSnapshot(
             activeSignals: signals,
             idleSeconds: IdleMonitor.systemIdleSeconds(),
-            frontmostApp: frontmost
+            frontmostApp: frontmost,
+            nextBusyStart: calendarSignal?.nextBusyStart
         )
         apply(engine.tick(now: Date(), context: context))
     }
@@ -302,6 +347,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .showOverlay(let kind):
                 overlayController.show(kind: kind, remaining: engine.config.duration(of: kind))
                 Self.log.notice("overlay shown: \(kind.rawValue)")
+            case .showOverlayForMeetingGap(let kind):
+                overlayController.show(
+                    kind: kind,
+                    remaining: engine.config.duration(of: kind),
+                    promptOverride: "Meeting soon — a good moment for your break")
+                Self.log.notice("meeting-gap early break: \(kind.rawValue, privacy: .public)")
             case .hideOverlay:
                 overlayController.hide()
                 Self.log.notice("overlay hidden")
