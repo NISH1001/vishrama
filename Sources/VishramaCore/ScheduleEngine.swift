@@ -28,11 +28,17 @@ public final class ScheduleEngine {
     private var quietUntil: Date?
     /// The breakDue we already sent a heads-up for (one warning per break).
     private var preBreakWarnedFor: Date?
+    /// When the current work period began. Idle time is clamped to this so
+    /// hands-off time DURING a break can't leak into the fresh interval as
+    /// phantom "away" time (which double-credited natural breaks).
+    private var workStartedAt: Date
 
     public init(config: BreakConfiguration = BreakConfiguration(), startAt now: Date, restoring snapshot: ScheduleSnapshot? = nil) {
         self.config = config
+        self.workStartedAt = now
         guard let snapshot else {
-            self.state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: 0)
+            self.workStartedAt = now
+        state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: 0)
             return
         }
         // Carry the cycle and adaptivity over; expired flow-quiet stays expired.
@@ -47,7 +53,8 @@ public final class ScheduleEngine {
             // Brief relaunch: the countdown continues, downtime counted as worked.
             remaining = min(max(30, snapshot.remainingWork - gap), config.shortInterval)
         }
-        self.state = .working(breakDue: now.addingTimeInterval(remaining), completedShortBreaks: snapshot.completedShortBreaks)
+        self.workStartedAt = now
+        state = .working(breakDue: now.addingTimeInterval(remaining), completedShortBreaks: snapshot.completedShortBreaks)
     }
 
     /// Capture what should survive a rebuild/relaunch. A snapshot taken
@@ -84,10 +91,12 @@ public final class ScheduleEngine {
     public func tick(now: Date, context: ContextSnapshot) -> [Effect] {
         switch state {
         case .working(let breakDue, let completed):
+            // Idle can't predate this work period (amnesty for the break itself).
+            let effectiveIdle = min(context.idleSeconds, now.timeIntervalSince(workStartedAt))
             // Sitting quietly in a meeting is not "away": only idle-pause when no signals.
-            if context.idleSeconds >= config.idlePauseThreshold, context.activeSignals.isEmpty {
+            if effectiveIdle >= config.idlePauseThreshold, context.activeSignals.isEmpty {
                 // Freeze the countdown at the moment activity stopped.
-                let idleStart = now.addingTimeInterval(-context.idleSeconds)
+                let idleStart = now.addingTimeInterval(-effectiveIdle)
                 let remaining = max(0, breakDue.timeIntervalSince(idleStart))
                 state = .idlePaused(remainingWork: remaining, completedShortBreaks: completed, idleStart: idleStart)
                 return [.updateStatus(.idlePaused(remaining: remaining))]
@@ -101,7 +110,8 @@ public final class ScheduleEngine {
                 if let quiet = quietUntil {
                     if now < quiet {
                         // Flow mode: whisper, don't take over; try again next interval.
-                        state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: completed)
+                        workStartedAt = now
+        state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: completed)
                         return [
                             .notifyBreak(kind),
                             .updateStatus(.working(remaining: scaledInterval)),
@@ -197,11 +207,13 @@ public final class ScheduleEngine {
             }
             if totalIdle >= config.shortDuration {
                 // A real rest, even if shorter than the pending long break: restart the interval.
-                state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: completed)
+                workStartedAt = now
+        state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: completed)
                 return [.updateStatus(.working(remaining: scaledInterval))]
             }
             // Brief absence: resume the frozen countdown.
-            state = .working(breakDue: now.addingTimeInterval(remainingWork), completedShortBreaks: completed)
+            workStartedAt = now
+        state = .working(breakDue: now.addingTimeInterval(remainingWork), completedShortBreaks: completed)
             return [.updateStatus(.working(remaining: remainingWork))]
 
         case .manuallyPaused(let remainingWork, _):
@@ -221,11 +233,13 @@ public final class ScheduleEngine {
             return completeBreak(of: pending, completedShortBreaks: completed, now: now) + [.log(.naturalBreak, pending)]
         }
         if duration >= config.shortDuration {
-            state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: completed)
+            workStartedAt = now
+        state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: completed)
             return [.updateStatus(.working(remaining: scaledInterval))]
         }
         // Brief nap: resume with whatever work time was left when the lid closed.
         let remaining = max(0, breakDue.timeIntervalSince(now.addingTimeInterval(-duration)))
+        workStartedAt = now
         state = .working(breakDue: now.addingTimeInterval(remaining), completedShortBreaks: completed)
         return [.updateStatus(.working(remaining: remaining))]
     }
@@ -245,6 +259,7 @@ public final class ScheduleEngine {
         backoffLevel = 0
         skipWeights.removeAll()
         quietUntil = nil
+        workStartedAt = now
         state = .working(breakDue: now.addingTimeInterval(config.shortInterval), completedShortBreaks: completed)
         effects.append(.updateStatus(.working(remaining: config.shortInterval)))
         return effects
@@ -265,7 +280,8 @@ public final class ScheduleEngine {
             state = .manuallyPaused(remainingWork: remainingWork, completedShortBreaks: completed)
             return [.updateStatus(.manualPaused(remaining: remainingWork)), .log(.paused, nil)]
         case .manuallyPaused(let remainingWork, let completed):
-            state = .working(breakDue: now.addingTimeInterval(remainingWork), completedShortBreaks: completed)
+            workStartedAt = now
+        state = .working(breakDue: now.addingTimeInterval(remainingWork), completedShortBreaks: completed)
             return [.updateStatus(.working(remaining: remainingWork)), .log(.resumed, nil)]
         case .pendingSuppressed(_, _, let completed):
             // Pausing while a break waits out a meeting: the break stays owed (fires on resume).
@@ -302,6 +318,7 @@ public final class ScheduleEngine {
         backoffLevel += 1
         let delay = config.backoffDelay(level: backoffLevel)
         // Skipped breaks do not advance the long-break cycle.
+        workStartedAt = now
         state = .working(breakDue: now.addingTimeInterval(delay), completedShortBreaks: completed)
         return [.hideOverlay, .updateStatus(.working(remaining: delay)), .log(.skipped, kind)]
             + recordDismissal(weight: 1.0, now: now)
@@ -310,6 +327,7 @@ public final class ScheduleEngine {
     /// User asked for a few more minutes (also Esc on the overlay).
     public func postpone(now: Date) -> [Effect] {
         guard case .breakActive(let kind, _, let completed) = state else { return [] }
+        workStartedAt = now
         state = .working(breakDue: now.addingTimeInterval(config.postponeDelay), completedShortBreaks: completed)
         return [.hideOverlay, .updateStatus(.working(remaining: config.postponeDelay)), .log(.postponed, kind)]
             + recordDismissal(weight: 0.5, now: now)
@@ -342,6 +360,7 @@ public final class ScheduleEngine {
         // A completed break earns a clean slate.
         backoffLevel = 0
         skipWeights.removeAll()
+        workStartedAt = now
         state = .working(breakDue: now.addingTimeInterval(scaledInterval), completedShortBreaks: newCompleted)
         return [.updateStatus(.working(remaining: scaledInterval))]
     }

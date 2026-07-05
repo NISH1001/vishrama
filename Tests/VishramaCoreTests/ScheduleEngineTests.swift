@@ -684,3 +684,47 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(!effects.contains(.showOverlayForMeetingGap(.short)))
     }
 }
+
+@Suite struct IdleAmnestyAfterBreaks {
+    @Test func handsOffBreakDoesNotLeakIdleIntoFreshInterval() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        // User keeps hands off for the whole break (idle grows to ~5 min).
+        let end = due.addingTimeInterval(5 * 60)
+        _ = engine.tick(now: end, context: ContextSnapshot(idleSeconds: 5 * 60))
+        // One second into the fresh interval, system idle still says ~5 min —
+        // but that idle belongs to the break, not to the new work period.
+        let effects = engine.tick(now: end.addingTimeInterval(1), context: ContextSnapshot(idleSeconds: 5 * 60 + 1))
+        #expect(effects.contains(.updateStatus(.working(remaining: 25 * 60.0 - 1))))
+        #expect(!effects.contains { if case .updateStatus(.idlePaused) = $0 { return true } else { return false } })
+    }
+
+    @Test func stayingAwayAfterTheBreakStillCountsFromBreakEnd() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let end = due.addingTimeInterval(5 * 60)
+        _ = engine.tick(now: end, context: ContextSnapshot(idleSeconds: 5 * 60))
+        // User genuinely leaves for 6 more minutes AFTER the break ended.
+        _ = engine.tick(now: end.addingTimeInterval(3 * 60), context: ContextSnapshot(idleSeconds: 8 * 60))
+        let back = end.addingTimeInterval(6 * 60)
+        let effects = engine.tick(now: back, context: ContextSnapshot(idleSeconds: 0))
+        // Post-break absence ≥ break length → natural break, counted from break END.
+        #expect(effects.contains(.log(.naturalBreak, .short)))
+    }
+
+    @Test func briefLingerAfterBreakThenReturnJustResumes() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let end = due.addingTimeInterval(5 * 60)
+        _ = engine.tick(now: end, context: ContextSnapshot(idleSeconds: 5 * 60))
+        // Idle-paused 3 min after the break, then returns: NOT a natural break.
+        _ = engine.tick(now: end.addingTimeInterval(3 * 60), context: ContextSnapshot(idleSeconds: 8 * 60))
+        let back = end.addingTimeInterval(3 * 60 + 30)
+        let effects = engine.tick(now: back, context: ContextSnapshot(idleSeconds: 0))
+        #expect(!effects.contains { if case .log(.naturalBreak, _) = $0 { return true } else { return false } })
+        #expect(effects.contains { if case .updateStatus(.working) = $0 { return true } else { return false } })
+    }
+}
