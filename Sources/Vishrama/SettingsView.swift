@@ -315,8 +315,14 @@ struct SettingsView: View {
 
             Section {
                 LabeledContent("Version") {
-                    Text(Self.versionString)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 10) {
+                        Text(Self.versionString)
+                            .foregroundStyle(.secondary)
+                        Button("Check for Updates…") {
+                            NSWorkspace.shared.open(URL(string: "https://github.com/NISH1001/vishrama/releases/latest")!)
+                        }
+                        .controlSize(.small)
+                    }
                 }
             }
         }
