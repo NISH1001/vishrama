@@ -30,6 +30,9 @@ public final class ScheduleEngine {
     private var preBreakWarnedFor: Date?
     /// When a meeting signal first became continuously active (nil = not in one).
     private var meetingSince: Date?
+    /// The upcoming meeting we already offered an early break for — so dismissing
+    /// it doesn't re-fire seconds later for the same meeting.
+    private var meetingGapOfferedFor: Date?
     /// Last in-meeting eye reminder (anchors the repeat cadence).
     private var lastMicroNudge: Date?
     /// When the current work period began. Idle time is clamped to this so
@@ -175,6 +178,7 @@ public final class ScheduleEngine {
             // of it landing mid-meeting and being suppressed for an hour.
             if let nextBusy = context.nextBusyStart,
                context.activeSignals.isEmpty,
+               meetingGapOfferedFor != nextBusy,   // once per upcoming meeting
                quietUntil == nil || now >= quietUntil! {
                 let kind = pendingBreakKind(completedShortBreaks: completed)
                 let remaining = breakDue.timeIntervalSince(now)
@@ -182,6 +186,7 @@ public final class ScheduleEngine {
                 if remaining <= 0.4 * config.shortInterval,
                    untilMeeting > 0,
                    untilMeeting <= config.duration(of: kind) + 5 * 60 {
+                    meetingGapOfferedFor = nextBusy
                     let duration = config.duration(of: kind)
                     state = .breakActive(kind: kind, endsAt: now.addingTimeInterval(duration), completedShortBreaks: completed)
                     return [

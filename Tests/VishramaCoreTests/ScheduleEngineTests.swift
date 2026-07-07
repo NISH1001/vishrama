@@ -819,3 +819,30 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(onTime.contains(.notifyMicroBreak))
     }
 }
+
+@Suite struct MeetingGapOnce {
+    // Bug: dismissing the early break re-fired it seconds later (retry interval
+    // sits below the 60%-elapsed threshold while the meeting is still soon).
+    @Test func offersOncePerMeetingEvenAfterSkip() {
+        let engine = makeEngine()
+        let now = t0.addingTimeInterval(16 * 60)          // >60% into 25-min interval
+        let ctx = ContextSnapshot(nextBusyStart: now.addingTimeInterval(8 * 60))
+        #expect(engine.tick(now: now, context: ctx).contains(.showOverlayForMeetingGap(.short)))
+        _ = engine.skip(now: now)                          // dismiss → retry in 5 min
+        // 4 min later: retry not yet due, same meeting still soon — must NOT re-offer.
+        let ctx2 = ContextSnapshot(nextBusyStart: now.addingTimeInterval(8 * 60))
+        let again = engine.tick(now: now.addingTimeInterval(4 * 60), context: ctx2)
+        #expect(!again.contains(.showOverlayForMeetingGap(.short)))
+    }
+
+    @Test func aDifferentMeetingGetsItsOwnOffer() {
+        let engine = makeEngine()
+        let now = t0.addingTimeInterval(16 * 60)
+        _ = engine.tick(now: now, context: ContextSnapshot(nextBusyStart: now.addingTimeInterval(8 * 60)))  // meeting A
+        _ = engine.skip(now: now)                          // retry in 5 min
+        // A different meeting (different start) before the retry is due → fresh offer.
+        let ctxB = ContextSnapshot(nextBusyStart: now.addingTimeInterval(9 * 60))
+        let effects = engine.tick(now: now.addingTimeInterval(4 * 60), context: ctxB)
+        #expect(effects.contains(.showOverlayForMeetingGap(.short)))
+    }
+}
