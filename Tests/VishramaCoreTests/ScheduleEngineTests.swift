@@ -786,3 +786,36 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(!effects.contains(.notifyMicroBreak))
     }
 }
+
+@Suite struct MicroNudgeMeetingTime {
+    // The bug: nudges were tied to break-suppression, so a meeting where no
+    // break fell due produced none. They should key off meeting time.
+    @Test func nudgeFiresInMeetingWithNoBreakDue() {
+        // Long interval so no break comes due during the meeting window.
+        let engine = ScheduleEngine(
+            config: BreakConfiguration(shortInterval: 90 * 60, microNudgeInterval: 20 * 60),
+            startAt: t0)
+        let meeting = ContextSnapshot(activeSignals: [.cameraMic])
+        _ = engine.tick(now: t0, context: meeting)                       // meeting starts, working
+        let early = engine.tick(now: t0.addingTimeInterval(19 * 60), context: meeting)
+        #expect(!early.contains(.notifyMicroBreak))
+        // 20 min into the meeting — still in working state, break not due — nudge.
+        let effects = engine.tick(now: t0.addingTimeInterval(20 * 60), context: meeting)
+        #expect(effects.contains(.notifyMicroBreak))
+    }
+
+    @Test func meetingClockResetsWhenMeetingEnds() {
+        let engine = ScheduleEngine(
+            config: BreakConfiguration(shortInterval: 90 * 60, microNudgeInterval: 20 * 60),
+            startAt: t0)
+        let meeting = ContextSnapshot(activeSignals: [.cameraMic])
+        _ = engine.tick(now: t0, context: meeting)
+        _ = engine.tick(now: t0.addingTimeInterval(5 * 60), context: ContextSnapshot())  // meeting ends
+        // New meeting starts; the 20-min clock restarts from here, not from t0.
+        _ = engine.tick(now: t0.addingTimeInterval(10 * 60), context: meeting)
+        let tooSoon = engine.tick(now: t0.addingTimeInterval(25 * 60), context: meeting)   // 15 min into 2nd
+        #expect(!tooSoon.contains(.notifyMicroBreak))
+        let onTime = engine.tick(now: t0.addingTimeInterval(30 * 60), context: meeting)    // 20 min into 2nd
+        #expect(onTime.contains(.notifyMicroBreak))
+    }
+}

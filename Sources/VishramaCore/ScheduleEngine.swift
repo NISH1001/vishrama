@@ -28,6 +28,8 @@ public final class ScheduleEngine {
     private var quietUntil: Date?
     /// The breakDue we already sent a heads-up for (one warning per break).
     private var preBreakWarnedFor: Date?
+    /// When a meeting signal first became continuously active (nil = not in one).
+    private var meetingSince: Date?
     /// Last in-meeting eye reminder (anchors the repeat cadence).
     private var lastMicroNudge: Date?
     /// When the current work period began. Idle time is clamped to this so
@@ -91,6 +93,48 @@ public final class ScheduleEngine {
     }
 
     public func tick(now: Date, context: ContextSnapshot) -> [Effect] {
+        // Eye nudges are keyed to time-in-meeting (read state before it mutates).
+        let nudge = microNudgeEffects(now: now, context: context)
+        return tickState(now: now, context: context) + nudge
+    }
+
+    /// 20-20-20 eye reminder during a long meeting — driven by how long a
+    /// meeting signal (camera/mic or busy calendar) has been continuously
+    /// active, independent of the break cycle. Silent while screen-sharing and
+    /// when the meeting is about to end.
+    private func microNudgeEffects(now: Date, context: ContextSnapshot) -> [Effect] {
+        let inMeeting = context.activeSignals.contains(.cameraMic)
+            || context.activeSignals.contains(.calendarBusy)
+        guard inMeeting else {
+            meetingSince = nil
+            lastMicroNudge = nil
+            return []
+        }
+        if meetingSince == nil {
+            meetingSince = now
+            lastMicroNudge = nil
+        }
+        // Only while at the screen (working / a held break) — not mid-break or paused.
+        let nudgeable: Bool
+        switch state {
+        case .working, .pendingSuppressed: nudgeable = true
+        default: nudgeable = false
+        }
+        guard config.microNudgeInterval > 0,
+              nudgeable,
+              !context.activeSignals.contains(.screenShare)
+        else { return [] }
+
+        let endsSoon = context.currentBusyEnd.map { $0 > now && $0.timeIntervalSince(now) < 5 * 60 } ?? false
+        let anchor = lastMicroNudge ?? meetingSince ?? now
+        if now.timeIntervalSince(anchor) >= config.microNudgeInterval, !endsSoon {
+            lastMicroNudge = now
+            return [.notifyMicroBreak, .log(.microNudge, nil)]
+        }
+        return []
+    }
+
+    private func tickState(now: Date, context: ContextSnapshot) -> [Effect] {
         switch state {
         case .working(let breakDue, let completed):
             // Idle can't predate this work period (amnesty for the break itself).
@@ -106,7 +150,6 @@ public final class ScheduleEngine {
             if now >= breakDue {
                 let kind = pendingBreakKind(completedShortBreaks: completed)
                 if !context.activeSignals.isEmpty {
-                    lastMicroNudge = nil
                     state = .pendingSuppressed(dueSince: breakDue, clearSince: nil, completedShortBreaks: completed)
                     return [.updateStatus(.suppressed(overdue: now.timeIntervalSince(breakDue))), .log(.suppressedStart, kind)]
                 }
@@ -173,20 +216,8 @@ public final class ScheduleEngine {
                 if clearSince != nil {
                     state = .pendingSuppressed(dueSince: dueSince, clearSince: nil, completedShortBreaks: completed)
                 }
-                // Long meeting: whisper the 20-20-20 eye reminder — but never
-                // while the screen is shared, and not when the meeting is about
-                // to end anyway (the real break follows shortly after).
-                if config.microNudgeInterval > 0,
-                   !context.activeSignals.contains(.screenShare) {
-                    let anchor = lastMicroNudge ?? dueSince
-                    let endsSoon = context.currentBusyEnd.map {
-                        $0 > now && $0.timeIntervalSince(now) < 5 * 60
-                    } ?? false
-                    if now.timeIntervalSince(anchor) >= config.microNudgeInterval, !endsSoon {
-                        lastMicroNudge = now
-                        return [.updateStatus(.suppressed(overdue: overdue)), .notifyMicroBreak, .log(.microNudge, nil)]
-                    }
-                }
+                // The 20-20-20 eye nudge is handled by microNudgeEffects (keyed
+                // to meeting time, not break-suppression time).
                 return [.updateStatus(.suppressed(overdue: overdue))]
             }
             guard let clearedAt = clearSince else {
