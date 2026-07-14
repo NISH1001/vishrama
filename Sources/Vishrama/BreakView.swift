@@ -11,6 +11,8 @@ final class BreakViewModel: ObservableObject {
 
     /// "Done" earns its place after a quarter of the break has been rested.
     var doneAvailable: Bool { duration > 0 && remaining <= duration * 0.75 }
+    /// −5 min is available only while it wouldn't drop below the 5-min floor.
+    var canReduce: Bool { remaining > 5 * 60 }
 
     var title: String {
         kind == .short ? "Eye Break" : "Standup Break"
@@ -21,8 +23,8 @@ struct BreakView: View {
     @ObservedObject var model: BreakViewModel
     let onSkip: () -> Void
     let onPostpone: () -> Void
-    /// Add 5 minutes to the current break (tap again to stack).
-    var onExtend: (() -> Void)?
+    /// Adjust the break length by ±minutes (tap to stack).
+    var onAdjust: ((TimeInterval) -> Void)?
     /// Shown after half the break: full credit, back to work early.
     var onDone: (() -> Void)?
     /// Long breaks only: hand this break to Mastishka for a proper sit.
@@ -52,15 +54,21 @@ struct BreakView: View {
                     .font(.system(size: 56, weight: .thin).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.85))
                     .padding(.top, 8)
-                if let onExtend {
-                    Button(action: onExtend) {
-                        Text("+5 min")
-                            .font(.system(size: 13))
-                            .padding(.horizontal, 12).padding(.vertical, 5)
+                if let onAdjust {
+                    HStack(spacing: 18) {
+                        Button { onAdjust(-5 * 60) } label: {
+                            Text("−5 min").padding(.horizontal, 10).padding(.vertical, 5)
+                        }
+                        .disabled(!model.canReduce)
+                        .help("Shorten the break by 5 minutes")
+                        Button { onAdjust(5 * 60) } label: {
+                            Text("+5 min").padding(.horizontal, 10).padding(.vertical, 5)
+                        }
+                        .help("Extend the break by 5 minutes")
                     }
+                    .font(.system(size: 13))
                     .buttonStyle(.borderless)
                     .foregroundStyle(.white.opacity(0.5))
-                    .help("Extend the break by 5 minutes")
                 }
                 HStack(spacing: 20) {
                     if model.doneAvailable, let onDone {

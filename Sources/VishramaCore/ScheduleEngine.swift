@@ -357,12 +357,17 @@ public final class ScheduleEngine {
         return [.showOverlay(kind), .updateStatus(.onBreak(kind: kind, remaining: duration))]
     }
 
-    /// Give the current break more time (tap "+5 min" repeatedly to stack).
-    public func extendBreak(by seconds: TimeInterval, now: Date) -> [Effect] {
+    /// Adjust the current break's length by ±seconds (tap to stack). Extends
+    /// freely; when reducing, never drops remaining below `floor` and never
+    /// bumps a nearly-done break back up.
+    public func extendBreak(by seconds: TimeInterval, now: Date, floor: TimeInterval = 5 * 60) -> [Effect] {
         guard case .breakActive(let kind, let endsAt, let completed) = state else { return [] }
-        let newEnd = endsAt.addingTimeInterval(seconds)
+        let current = max(0, endsAt.timeIntervalSince(now))
+        let target = current + seconds
+        let newRemaining = seconds >= 0 ? target : min(current, max(floor, target))
+        let newEnd = now.addingTimeInterval(newRemaining)
         state = .breakActive(kind: kind, endsAt: newEnd, completedShortBreaks: completed)
-        return [.updateStatus(.onBreak(kind: kind, remaining: newEnd.timeIntervalSince(now)))]
+        return [.updateStatus(.onBreak(kind: kind, remaining: newRemaining))]
     }
 
     /// The break was honored elsewhere (e.g. a Mastishka sit) — complete it

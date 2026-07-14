@@ -106,9 +106,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.apply(self.engine.postpone(now: Date()))
         }
-        overlayController.onExtend = { [weak self] in
+        overlayController.onAdjust = { [weak self] delta in
             guard let self else { return }
-            self.apply(self.engine.extendBreak(by: 5 * 60, now: Date()))
+            self.apply(self.engine.extendBreak(by: delta, now: Date()))
         }
         overlayController.onDone = { [weak self] in
             guard let self else { return }

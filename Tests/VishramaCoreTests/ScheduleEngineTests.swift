@@ -876,3 +876,24 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(engine.extendBreak(by: 5 * 60, now: t0.addingTimeInterval(60)) == [])
     }
 }
+
+@Suite struct ReduceBreak {
+    @Test func reduceLowersRemainingDownToFloor() {
+        let engine = makeEngine(shortDuration: 10 * 60)      // 10-min break
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        let e1 = engine.extendBreak(by: -5 * 60, now: due)   // 10 → 5
+        #expect(e1.contains(.updateStatus(.onBreak(kind: .short, remaining: 5 * 60.0))))
+        let e2 = engine.extendBreak(by: -5 * 60, now: due)   // would be 0 → clamped to 5
+        #expect(e2.contains(.updateStatus(.onBreak(kind: .short, remaining: 5 * 60.0))))
+    }
+
+    @Test func reduceNeverBumpsUpANearlyDoneBreak() {
+        let engine = makeEngine()                            // 5-min break
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        // 3 min in → 2 min remaining (already below the 5-min floor).
+        let effects = engine.extendBreak(by: -5 * 60, now: due.addingTimeInterval(3 * 60))
+        #expect(effects.contains(.updateStatus(.onBreak(kind: .short, remaining: 2 * 60.0))))
+    }
+}

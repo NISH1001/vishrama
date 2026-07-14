@@ -13,7 +13,7 @@ final class OverlayController {
     let model = BreakViewModel()
     var onSkip: (() -> Void)?
     var onPostpone: (() -> Void)?
-    var onExtend: (() -> Void)?
+    var onAdjust: ((TimeInterval) -> Void)?
     var onDone: (() -> Void)?
     var onSitWithMastishka: (() -> Void)?
 
@@ -58,7 +58,7 @@ final class OverlayController {
                 model: model,
                 onSkip: { [weak self] in self?.onSkip?() },
                 onPostpone: { [weak self] in self?.onPostpone?() },
-                onExtend: { [weak self] in self?.onExtend?() },
+                onAdjust: { [weak self] delta in self?.onAdjust?(delta) },
                 onDone: { [weak self] in self?.onDone?() },
                 onSitWithMastishka: { [weak self] in self?.onSitWithMastishka?() }
             ))
