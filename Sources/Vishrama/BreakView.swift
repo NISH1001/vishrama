@@ -21,6 +21,8 @@ struct BreakView: View {
     @ObservedObject var model: BreakViewModel
     let onSkip: () -> Void
     let onPostpone: () -> Void
+    /// Add 5 minutes to the current break (tap again to stack).
+    var onExtend: (() -> Void)?
     /// Shown after half the break: full credit, back to work early.
     var onDone: (() -> Void)?
     /// Long breaks only: hand this break to Mastishka for a proper sit.
@@ -50,6 +52,16 @@ struct BreakView: View {
                     .font(.system(size: 56, weight: .thin).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.85))
                     .padding(.top, 8)
+                if let onExtend {
+                    Button(action: onExtend) {
+                        Text("+5 min")
+                            .font(.system(size: 13))
+                            .padding(.horizontal, 12).padding(.vertical, 5)
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .help("Extend the break by 5 minutes")
+                }
                 HStack(spacing: 20) {
                     if model.doneAvailable, let onDone {
                         Button(action: onDone) {

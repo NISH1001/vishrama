@@ -846,3 +846,33 @@ private func completeBreak(_ engine: ScheduleEngine, from due: Date, duration: T
         #expect(effects.contains(.showOverlayForMeetingGap(.short)))
     }
 }
+
+@Suite struct ExtendBreak {
+    @Test func extendAddsTimeToActiveBreak() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())        // 5-min break starts
+        let effects = engine.extendBreak(by: 5 * 60, now: due.addingTimeInterval(60))
+        // 4 min left + 5 min extension = 9 min remaining.
+        #expect(effects.contains(.updateStatus(.onBreak(kind: .short, remaining: 9 * 60.0))))
+        // The break now actually runs to the extended end.
+        #expect(!engine.tick(now: due.addingTimeInterval(5 * 60), context: ContextSnapshot()).contains(.hideOverlay))
+        #expect(engine.tick(now: due.addingTimeInterval(10 * 60), context: ContextSnapshot()).contains(.hideOverlay))
+    }
+
+    @Test func extendStacksWithRepeatedTaps() {
+        let engine = makeEngine()
+        let due = t0.addingTimeInterval(25 * 60)
+        _ = engine.tick(now: due, context: ContextSnapshot())
+        _ = engine.extendBreak(by: 5 * 60, now: due)
+        let effects = engine.extendBreak(by: 5 * 60, now: due)
+        // 5 base + 5 + 5 = 15 min.
+        #expect(effects.contains(.updateStatus(.onBreak(kind: .short, remaining: 15 * 60.0))))
+    }
+
+    @Test func extendOutsideABreakDoesNothing() {
+        let engine = makeEngine()
+        _ = engine.tick(now: t0, context: ContextSnapshot())
+        #expect(engine.extendBreak(by: 5 * 60, now: t0.addingTimeInterval(60)) == [])
+    }
+}
